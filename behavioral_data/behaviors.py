@@ -120,12 +120,11 @@ def enter_zone2(data, start_times):
 
 def get_drinking_times(data, index=2):
     #  Returns moments where the mouse is drinking, if index = 0 returns drinking moments when the trough is empty, index = 1 for a full trough
-    full_drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == 1) & (data.iloc[:, 4] == 1)].iloc[:, 0]
     if index == 2:
-        full_drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:, 4] == 1)].iloc[:, 0]
+        drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:, 4] == 1)].iloc[:, 0]
     else :
-        full_drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == index) & (data.iloc[:, 4] == 1)].iloc[:, 0]
-    return full_drinking_times
+        drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == index) & (data.iloc[:, 4] == 1)].iloc[:, 0]
+    return drinking_times
 
 
 def get_drinking_full_interval(data, start_off_task):
@@ -147,7 +146,6 @@ def get_drinking_full_interval(data, start_off_task):
                 start_buffer.append(start)
                 end_buffer.append(end)
             else : 
-                print("hello")
                 first_off_task = subset_off_task.iloc[0]
                 end1 = drinking_full[drinking_full["time"]<=first_off_task].iloc[-1]
                 start2 = drinking_full[drinking_full["time"]>=first_off_task].iloc[0]
@@ -161,23 +159,37 @@ def get_drinking_full_interval(data, start_off_task):
 
     return start_drinking_df, end_drinking_df
 
-def get_drinking_empty_interval(data):
+def get_drinking_empty_interval(empty_drinking_times, limit = 1000):
     # Returns df containing data where the mouse is drinking when there is no liquid in the trough
+    # The intervals are based on a limit, the limit can be optimised with the mean value btw 2 lickings for example
     # Is it useful to have interval of drinking when empty trough?
     # Often, empty drinking follows full drinkings, mouse makes sure trough is empty?
     # Does it decay?
-    trough_data = data[(data.iloc[:,1] == 5)]
-    full_drinking_times = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == 0) & (data.iloc[:, 4] == 1)].iloc[:, 0]
-    full_trough = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == 1)].iloc[:, 0]
-    empty_trough = data[(data.iloc[:,1] == 5) & (data.iloc[:,3] == 0)].iloc[:,0]
-    
+
     start_buffer = []
     end_buffer = []
+    next_i = 0
+    for i in range(len(empty_drinking_times)):
+        if not i == next_i:
+            continue
+        start_t = empty_drinking_times.iloc[i]
 
-    start_drinking_df = pd.DataFrame(start_buffer)
-    end_drinking_df = pd.DataFrame(end_buffer)
+        for j in range(i+1, len(empty_drinking_times)-1):
+                next_t = empty_drinking_times.iloc[j-1]
+                next_t2 = empty_drinking_times.iloc[j]
+                if ((next_t2 - next_t) < limit):
+                    continue
+                else :
+                    # end_t = empty_drinking_times.iloc[j-1] 
+                    start_buffer.append(start_t)
+                    end_buffer.append(next_t)
+                    next_i = j
+                    break
 
-    return full_drinking_times, start_drinking_df, end_drinking_df
+    start_drinking_df = pd.DataFrame(start_buffer, columns=["time"])
+    end_drinking_df = pd.DataFrame(end_buffer, columns=["time"])
+
+    return start_drinking_df, end_drinking_df
 
     
 def off_task(zone1_times, zone2_times, drinking_times, pressing_times):
@@ -267,27 +279,31 @@ def plot_behaviors_levels(file_path):
     
     drinking_times = get_drinking_times(data)
     full_drinking_times = get_drinking_times(data, 1)
-    y_full_drinking = [1.75]*len(full_drinking_times)
-    average_gap = full_drinking_times.diff().mean()
-    print(average_gap)
-    plt.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple')
+    y_full_drinking = [1.875]*len(full_drinking_times)
+    # average_gap = full_drinking_times.diff().mean()
+    # print(average_gap)
+    
 
     empty_drinking_times = get_drinking_times(data, 0)
-    y_empty_drinking = [1.65]*len(empty_drinking_times)
-    average_gap = empty_drinking_times.diff().mean()
-    print(average_gap)
-    plt.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange')
+    y_empty_drinking = [1.625]*len(empty_drinking_times)
+    # average_gap = empty_drinking_times.diff().mean()
+    # print(average_gap)
+    
 
     start_off_task, end_off_task = off_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times)
-    plt.barh(y=0.375, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
+    plt.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
     
     start_in_task, end_in_task = in_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times)
     plt.barh(y=.375, width=np.array(end_in_task.iloc[:,0]) - np.array(start_in_task.iloc[:,0]), left=start_in_task.iloc[:,0], height=0.25, color="green", edgecolor='black', label='In task')
 
     start_drinking_df, end_drinking_df = get_drinking_full_interval(data, start_off_task.iloc[:,0])
     start_drinking_times, end_drinking_times = start_drinking_df.iloc[:,0], end_drinking_df.iloc[:,0]
-    plt.barh(y=1.75, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.25, color="purple", edgecolor='black', label='Drinking full')
-
+    plt.barh(y=1.875, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.25, color="purple", edgecolor='black', label='Drinking full')
+    
+    start_empty_drinking_df, end_empty_drinking_df = get_drinking_empty_interval(empty_drinking_times)
+    plt.barh(y=1.625, width=np.array(end_empty_drinking_df.iloc[:,0]) - np.array(start_empty_drinking_df.iloc[:,0]), left=np.array(start_empty_drinking_df.iloc[:,0]), height=0.25, color="orange", edgecolor='black', label='Drinking full')
+    plt.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple')
+    plt.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange')
     # for time in start_off_task["time"]:
     #     plt.axvline(time, 0, 2, color="r", linestyle= '--')
     # for time in end_off_task["time"]:
@@ -297,6 +313,10 @@ def plot_behaviors_levels(file_path):
     seq_start_times, seq_end_times = seq_starts_df.iloc[:, 0], seq_ends_df.iloc[:,0]
     plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="blue", edgecolor='black', label='Action sequence')
 
+    for time in enter_zone1_times:
+        plt.axvline(time, 0, 2, color="g", linestyle= '--')
+    for time in enter_zone2_times:
+        plt.axvline(time, 0, 2, color="r", linestyle= '--')
 
     plt.legend(loc='upper right')
     plt.show()
@@ -304,5 +324,7 @@ def plot_behaviors_levels(file_path):
 
 
 
-
-plot_behaviors_levels(r"P:\Ca2+ Data\F5\Exp 010\F5_FR1_Day1_220124_01.dat")
+dat_files = pd.read_csv(r".\dat_files\paths\paths_dat\F5_dat_exp10_to_16.csv")
+for file in dat_files["File"]:
+    print(file)
+    plot_behaviors_levels(file)
