@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd
+import itertools
 
 column_names = ['time','family', 'num', 'P', 'V', 'L', 'R', 'T','W', 'X', 'Y', 'Z']
 
@@ -191,83 +192,96 @@ def get_drinking_empty_interval(empty_drinking_times, limit = 1000):
 
     return start_drinking_df, end_drinking_df
 
+def in_off_task(zone1_times, zone2_times, drinking_times, pressing_times, max_t = 1200000):
+    # Returns df containing start and end times of moments when the mouse is in or off task
+    in_task_start_buffer = []
+    in_task_end_buffer = []
+    off_task_start_buffer = []
+    off_task_end_buffer = []
     
-def off_task(zone1_times, zone2_times, drinking_times, pressing_times):
-    # Returns dfs containing start and end of off-task moments
-    # These are defined as moments when the mouse is neither going for dinking or pressing actions.
-    # This means that it is when the mouse is not in zone 1 to perform a task
-    start_buffer = []
-    end_buffer = []
-    next_i = 0
-    for i in range(len(zone2_times)):
-        if not i == next_i:
-            continue
-        start_t = zone2_times.iloc[i]
+    for start_z1_t, start_z2_t in itertools.zip_longest(zone1_times, zone2_times):
+        if start_z1_t is not None:
+            next_zone2_times = zone2_times[zone2_times > start_z1_t]
+            next_zone1_times = zone1_times[zone1_times > start_z1_t]
 
-        if i != (len(zone2_times)-1):
-            for j in range(i+1, len(zone2_times)):
-                next_t = zone2_times.iloc[j]
+            if not next_zone2_times.empty:
+                next_zone2_t = next_zone2_times.iloc[0]
+            else : 
+                next_zone2_t = max_t
 
-                subset_drinking = drinking_times[(drinking_times >= start_t) & (drinking_times <= next_t)]
-                subset_pressing = pressing_times[(pressing_times >= start_t) & (pressing_times <= next_t)]
+            if not next_zone1_times.empty:
+                next_zone1_t = next_zone1_times.iloc[0]
+            else :
+                next_zone1_t = max_t
 
-                if subset_drinking.empty & subset_pressing.empty:
-                    continue
-                else :
-                    next_zone1 = zone1_times[zone1_times <= next_t].iloc[-1]
-                    start_buffer.append(start_t)
-                    end_buffer.append(next_zone1)
-                    next_i = j
-                    break
-        else :
-            next_t = 1200000
-            subset_drinking = drinking_times[(drinking_times >= start_t) & (drinking_times <= next_t)]
-            subset_pressing = pressing_times[(pressing_times >= start_t) & (pressing_times <= next_t)]
+            end_t = min(next_zone1_t, next_zone2_t)
+
+            subset_drinking = drinking_times[(drinking_times >= start_z1_t) & (drinking_times <= end_t)]
+            subset_pressing = pressing_times[(pressing_times >= start_z1_t) & (pressing_times <= end_t)]
 
             if subset_drinking.empty & subset_pressing.empty:
-                start_buffer.append(start_t)
-                end_buffer.append(next_t)
+                off_task_start_buffer.append(start_z1_t)
+                off_task_end_buffer.append(end_t)
             else :
-                next_zone1 = zone1_times[zone1_times >= start_t].iloc[0]
-                start_buffer.append(start_t)
-                end_buffer.append(next_zone1)
+                in_task_start_buffer.append(start_z1_t)
+                in_task_end_buffer.append(end_t)
 
-    start_df = pd.DataFrame(start_buffer, columns=["time"]).drop_duplicates()
-    end_df = pd.DataFrame(end_buffer, columns=["time"]).drop_duplicates()
 
-    return start_df, end_df
+        if start_z2_t is not None:
+            next_zone1_times = zone1_times[zone1_times > start_z2_t]
+            next_zone2_times = zone2_times[zone2_times > start_z2_t]
 
-def in_task(zone1_times, zone2_times, drinking_times, pressing_times):
+            if not next_zone1_times.empty:
+                next_zone1_t = next_zone1_times.iloc[0]
+            else :
+                next_zone1_t = max_t
+
+            if not next_zone2_times.empty:
+                next_zone2_t = next_zone2_times.iloc[0]
+            else : 
+                next_zone2_t = max_t
+
+            end_t = min(next_zone1_t, next_zone2_t)
+
+            subset_drinking = drinking_times[(drinking_times >= start_z2_t) & (drinking_times <= end_t)]
+            subset_pressing = pressing_times[(pressing_times >= start_z2_t) & (pressing_times <= end_t)]
+
+            if subset_drinking.empty & subset_pressing.empty:
+                off_task_start_buffer.append(start_z2_t)
+                off_task_end_buffer.append(end_t)
+            else :
+                continue
+    
+    in_task_start_df = pd.DataFrame(in_task_start_buffer, columns=["time"]).drop_duplicates()
+    int_task_end_df = pd.DataFrame(in_task_end_buffer, columns=["time"]).drop_duplicates()
+    off_task_start_df = pd.DataFrame(off_task_start_buffer, columns=["time"]).drop_duplicates()
+    off_task_end_df = pd.DataFrame(off_task_end_buffer, columns=["time"]).drop_duplicates()
+    
+    return in_task_start_df, int_task_end_df, off_task_start_df, off_task_end_df
+
+def merge_intervals(start_df, end_df):
+    intervals = sorted(zip(start_df.iloc[:, 0], end_df.iloc[:, 0]))
     start_buffer = []
     end_buffer = []
+    current_start, current_end = intervals[0]
 
-    # In case last zone where the mouse was is zone 1
-    diff = len(zone1_times) - len(zone2_times)
-    if diff >=0:
-        zone2_times.loc[len(zone2_times)] = 1200000
-    
-    for start_t, end_t in zip(zone1_times, zone2_times):
+    for start, end in intervals[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+        else:
+            start_buffer.append(current_start)
+            end_buffer.append(current_end)
+            current_start, current_end = start, end
+    start_buffer.append(current_start)
+    end_buffer.append(current_end)
+    return pd.DataFrame(start_buffer, columns=["time"]), pd.DataFrame(end_buffer, columns=["time"])
 
-        subset_drinking = drinking_times[(drinking_times >= start_t) & (drinking_times <= end_t)]
-        subset_pressing = pressing_times[(pressing_times >= start_t) & (pressing_times <= end_t)]
-        
-        if subset_drinking.empty & subset_pressing.empty:
-            continue
-        else :
-            start_buffer.append(start_t)
-            end_buffer.append(end_t)
-    
-    start_df = pd.DataFrame(start_buffer, columns=["time"]).drop_duplicates()
-    end_df = pd.DataFrame(end_buffer, columns=["time"]).drop_duplicates()
-    
-    return start_df, end_df
-        
-                
 
 def plot_behaviors_levels(file_path):
 
     data = load_data(file_path)
-
+    max_time = data.iloc[-1,0]
+    print(max_time)
     fig = plt.figure(figsize=(12, 2))
 
     start_pressing_df, end_pressing_df = pressing_actions(data)
@@ -290,11 +304,11 @@ def plot_behaviors_levels(file_path):
     # print(average_gap)
     
 
-    start_off_task, end_off_task = off_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times)
-    plt.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
-    
-    start_in_task, end_in_task = in_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times)
+    start_in_task, end_in_task, start_off_task, end_off_task  = in_off_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times, max_time)
+    start_in_task, end_in_task = merge_intervals(start_in_task, end_in_task)
+    start_off_task, end_off_task = merge_intervals(start_off_task, end_off_task)
     plt.barh(y=.375, width=np.array(end_in_task.iloc[:,0]) - np.array(start_in_task.iloc[:,0]), left=start_in_task.iloc[:,0], height=0.25, color="green", edgecolor='black', label='In task')
+    plt.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
 
     start_drinking_df, end_drinking_df = get_drinking_full_interval(data, start_off_task.iloc[:,0])
     start_drinking_times, end_drinking_times = start_drinking_df.iloc[:,0], end_drinking_df.iloc[:,0]
@@ -313,18 +327,19 @@ def plot_behaviors_levels(file_path):
     seq_start_times, seq_end_times = seq_starts_df.iloc[:, 0], seq_ends_df.iloc[:,0]
     plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="blue", edgecolor='black', label='Action sequence')
 
-    for time in enter_zone1_times:
-        plt.axvline(time, 0, 2, color="g", linestyle= '--')
-    for time in enter_zone2_times:
-        plt.axvline(time, 0, 2, color="r", linestyle= '--')
-
+    # for time in enter_zone1_times:
+    #     plt.axvline(time, 0, 2, color="g", linestyle= '--')
+    # for time in enter_zone2_times:
+    #     plt.axvline(time, 0, 2, color="r", linestyle= '--')
+    plt.xlabel("Time (ms)")
     plt.legend(loc='upper right')
     plt.show()
 
 
 
 
-dat_files = pd.read_csv(r".\dat_files\paths\paths_dat\F5_dat_exp10_to_16.csv")
-for file in dat_files["File"]:
-    print(file)
-    plot_behaviors_levels(file)
+dat_files = pd.read_csv(r".\behavioral_data\paths\paths_dat\F5_dat_exp10_to_16.csv")
+# for file in dat_files["File"]:
+#     print(file)
+#     plot_behaviors_levels(file)
+plot_behaviors_levels("P:\Ca2+ Data\F5\Exp012\F5_FR1_Day2_session2_230124good_01.dat")
