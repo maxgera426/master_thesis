@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd
 import itertools
+import os
 import movie_data
+import time
 
 column_names = ['time','family', 'num', 'P', 'V', 'L', 'R', 'T','W', 'X', 'Y', 'Z']
 
@@ -80,6 +82,44 @@ def action_sequences(data, start_pressing, end_pressing, drinking_times, start_i
     seq_ends_df = pd.DataFrame(end_buffer, columns= data.columns).drop_duplicates().reset_index(drop=True)
 
     return seq_starts_df, seq_ends_df
+
+def moving_in_zone2(start_in_task, end_in_task, start_action_sequence, end_action_sequence):
+    start_lever_buffer = []
+    end_lever_buffer = []
+    start_z1_buffer = []
+    end_z1_buffer = []
+    for start, end in zip(start_in_task['time'], end_in_task['time']):
+        next_action_start = start_action_sequence[(start_action_sequence >= start) & (start_action_sequence <= end)]
+        next_action_end = end_action_sequence[(end_action_sequence >= start) & (end_action_sequence <= end)]
+        if not next_action_start.empty:
+            start_lever_buffer.append(start)
+            end_lever_buffer.append(next_action_start.iloc[0])
+        if not next_action_end.empty:
+            start_z1_buffer.append(next_action_end.iloc[-1])
+            end_z1_buffer.append(end)
+    start_lever_df = pd.DataFrame(start_lever_buffer, columns=["time"])
+    end_lever_df = pd.DataFrame(end_lever_buffer, columns=["time"])
+    start_z1_df = pd.DataFrame(start_z1_buffer, columns=["time"])
+    end_z1_df = pd.DataFrame(end_z1_buffer, columns=["time"])
+    return start_lever_df, end_lever_df, start_z1_df, end_z1_df
+
+def moving_in_zone1(start_in_task, end_in_task, drinking_times):
+    start_trough_buffer = []
+    end_trough_buffer = []
+    start_z2_buffer = []
+    end_z2_buffer = []
+    for start, end in zip(start_in_task['time'], end_in_task['time']):
+        next_drinking_times= drinking_times[(drinking_times >= start) & (drinking_times <= end)]
+        if not next_drinking_times.empty:
+            start_trough_buffer.append(start)
+            end_trough_buffer.append(next_drinking_times.iloc[0])
+            start_z2_buffer.append(next_drinking_times.iloc[-1])
+            end_z2_buffer.append(end)
+    start_trough_df = pd.DataFrame(start_trough_buffer, columns=['time'])
+    end_trough_df = pd.DataFrame(end_trough_buffer, columns=['time'])
+    start_z2_df = pd.DataFrame(start_z2_buffer, columns=['time'])
+    end_z2_df = pd.DataFrame(end_z2_buffer, columns=['time'])
+    return start_trough_df, end_trough_df, start_z2_df, end_z2_df
 
 def enter_zone1(data, end_times):
     # This functions returns the times at which mouse enters zone 1 before starting an action sequence
@@ -260,9 +300,7 @@ def merge_intervals(start_df, end_df):
     return pd.DataFrame(start_buffer, columns=["time"]), pd.DataFrame(end_buffer, columns=["time"])
 
 
-def plot_behaviors_levels(file_path):
-
-    data = load_data(file_path)
+def plot_behaviors_levels(data, title):
     max_time = data.iloc[-1,0]
     fig = plt.figure(figsize=(12, 2))
     # zone_intervals = movie_data.main()
@@ -289,23 +327,17 @@ def plot_behaviors_levels(file_path):
     drinking_times = get_drinking_times(data)
     full_drinking_times = get_drinking_times(data, 1)
     y_full_drinking = [1.875]*len(full_drinking_times)
-    # average_gap = full_drinking_times.diff().mean()
-    # print(average_gap)
-    
 
     empty_drinking_times = get_drinking_times(data, 0)
     y_empty_drinking = [1.875]*len(empty_drinking_times)
-    # average_gap = empty_drinking_times.diff().mean()
-    # print(average_gap)
     
-
     start_in_lever_task, end_in_lever_task, start_in_trough_task, end_in_trough_task, start_off_task, end_off_task  = in_off_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times, max_time)
     start_in_lever_task, end_in_lever_task = merge_intervals(start_in_lever_task, end_in_lever_task)
     start_in_trough_task, end_in_trough_task = merge_intervals(start_in_trough_task, end_in_trough_task)
     start_off_task, end_off_task = merge_intervals(start_off_task, end_off_task)
-    plt.barh(y=.375, width=np.array(end_in_lever_task.iloc[:,0]) - np.array(start_in_lever_task.iloc[:,0]), left=start_in_lever_task.iloc[:,0], height=0.25, color="green", edgecolor='black', label='In lever task')
-    plt.barh(y=.375, width=np.array(end_in_trough_task.iloc[:,0]) - np.array(start_in_trough_task.iloc[:,0]), left=start_in_trough_task.iloc[:,0], height=0.25, color="cornflowerblue", edgecolor='black', label='In trough task')
-    plt.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
+    plt.barh(y=.125, width=np.array(end_in_lever_task.iloc[:,0]) - np.array(start_in_lever_task.iloc[:,0]), left=start_in_lever_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='In lever task')
+    plt.barh(y=.125, width=np.array(end_in_trough_task.iloc[:,0]) - np.array(start_in_trough_task.iloc[:,0]), left=start_in_trough_task.iloc[:,0], height=0.25, color="blue", edgecolor='black', label='In trough task')
+    plt.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="gray", edgecolor='black', label='Off task')
 
     start_drinking_df, end_drinking_df, empty_drinking_intervals = get_drinking_intervals(drinking_times, full_drinking_times, start_off_task.iloc[:,0])
     start_drinking_times, end_drinking_times = start_drinking_df.iloc[:,0], end_drinking_df.iloc[:,0]
@@ -318,21 +350,92 @@ def plot_behaviors_levels(file_path):
 
     seq_starts_df, seq_ends_df = action_sequences(data, start_pressing_df, end_pressing_df, drinking_times, pd.concat([start_in_lever_task, start_in_trough_task], ignore_index=True)["time"], pd.concat([end_in_lever_task, end_in_trough_task])["time"])
     seq_start_times, seq_end_times = seq_starts_df.iloc[:, 0], seq_ends_df.iloc[:,0]
-    plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="blue", edgecolor='black', label='Action sequence')
+    plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="green", edgecolor='black', label='Action sequence')
+
+    start_moving_to_lever, end_moving_to_lever, start_moving_to_z1, end_moving_to_z1 = moving_in_zone2(start_in_lever_task, end_in_lever_task, seq_start_times, seq_end_times)
+    plt.barh(y=.375, width = end_moving_to_lever['time'] - start_moving_to_lever['time'], left= start_moving_to_lever['time'], height=0.25, color="darkred", edgecolor='black', label="moving to lever")
+    plt.barh(y=.375, width = end_moving_to_z1['time'] - start_moving_to_z1['time'], left= start_moving_to_z1['time'], height=0.25, color="tomato", edgecolor='black', label="moving to z1")
+
+    start_moving_to_trough, end_moving_to_trough, start_moving_to_z2, end_moving_to_z2 = moving_in_zone1(start_in_trough_task, end_in_trough_task, drinking_times)
+    plt.barh(y=.375, width = end_moving_to_trough['time'] - start_moving_to_trough['time'], left= start_moving_to_trough['time'], height=0.25, color="navy", edgecolor='black', label="moving to lever")
+    plt.barh(y=.375, width = end_moving_to_z2['time'] - start_moving_to_z2['time'], left= start_moving_to_z2['time'], height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z1")
+    
 
     for time in enter_zone1_times:
         plt.axvline(time, 0, 2, color="g", linestyle= '--')
     for time in enter_zone2_times:
         plt.axvline(time, 0, 2, color="r", linestyle= '--')
+
     plt.xlabel("Time (ms)")
-    plt.legend(loc='upper right')
+    fig.legend(loc='center right')
+    plt.title(title, loc='left', fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
     plt.show()
 
+def plot_multiple_behaviors(file_list):
+    print(file_list)
+    n = len(file_list)
+    fig, axes = plt.subplots(n, figsize=(12, 2*n))
+    for ax, file_path in zip(axes, file_list):
+        data = load_data(file_path)
+        max_time = data.iloc[-1,0]
 
+        start_pressing_df, end_pressing_df = pressing_actions(data)
+        start_pressing_times, end_pressing_times = start_pressing_df.iloc[:,0], end_pressing_df.iloc[:,0]
+        ax.barh(y=1.25, width=np.array(end_pressing_times) - np.array(start_pressing_times), left=start_pressing_times, height=0.5, color="black", edgecolor='black', label='Press')
 
+        enter_zone1_times = get_zones(data ,1)
+        enter_zone2_times = get_zones(data, 2)
+    
+        drinking_times = get_drinking_times(data)
+        full_drinking_times = get_drinking_times(data, 1)
+        y_full_drinking = [1.875]*len(full_drinking_times)
+        
+        empty_drinking_times = get_drinking_times(data, 0)
+        y_empty_drinking = [1.875]*len(empty_drinking_times)
+    
+        start_in_lever_task, end_in_lever_task, start_in_trough_task, end_in_trough_task, start_off_task, end_off_task  = in_off_task(enter_zone1_times, enter_zone2_times, drinking_times, start_pressing_times, max_time)
+        start_in_lever_task, end_in_lever_task = merge_intervals(start_in_lever_task, end_in_lever_task)
+        start_in_trough_task, end_in_trough_task = merge_intervals(start_in_trough_task, end_in_trough_task)
+        start_off_task, end_off_task = merge_intervals(start_off_task, end_off_task)
+        ax.barh(y=.375, width=np.array(end_in_lever_task.iloc[:,0]) - np.array(start_in_lever_task.iloc[:,0]), left=start_in_lever_task.iloc[:,0], height=0.25, color="green", edgecolor='black', label='In lever task')
+        ax.barh(y=.375, width=np.array(end_in_trough_task.iloc[:,0]) - np.array(start_in_trough_task.iloc[:,0]), left=start_in_trough_task.iloc[:,0], height=0.25, color="cornflowerblue", edgecolor='black', label='In trough task')
+        ax.barh(y=0.125, width=np.array(end_off_task.iloc[:,0]) - np.array(start_off_task.iloc[:,0]), left=start_off_task.iloc[:,0], height=0.25, color="red", edgecolor='black', label='Off task')
+
+        start_drinking_df, end_drinking_df, empty_drinking_intervals = get_drinking_intervals(drinking_times, full_drinking_times, start_off_task.iloc[:,0])
+        start_drinking_times, end_drinking_times = start_drinking_df.iloc[:,0], end_drinking_df.iloc[:,0]
+        ax.barh(y=1.875, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.25, color="purple", edgecolor='black', label='Drinking full')
+    
+        start_empty_drinking_df, end_empty_drinking_df = empty_drinking_intervals.iloc[:,0], empty_drinking_intervals.iloc[:,1]
+        ax.barh(y=1.875, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.25, color="orange", edgecolor='black', label='Drinking empty')
+        ax.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple')
+        ax.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange')
+
+        seq_starts_df, seq_ends_df = action_sequences(data, start_pressing_df, end_pressing_df, drinking_times, pd.concat([start_in_lever_task, start_in_trough_task], ignore_index=True)["time"], pd.concat([end_in_lever_task, end_in_trough_task])["time"])
+        seq_start_times, seq_end_times = seq_starts_df.iloc[:, 0], seq_ends_df.iloc[:,0]
+        ax.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="blue", edgecolor='black', label='Action sequence')
+        
+        ax.set_xlabel("Time (ms)")
+        ax.set_title(os.path.basename(os.path.dirname(file_path)), loc='left', fontweight= 'bold')
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='center right') 
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.show()
+    return
 
 dat_files = pd.read_csv(r".\behavioral_data\paths\paths_dat\M2_dat_exp10_to_16.csv")
-for file in dat_files["File"]:
-    print(file)
-    plot_behaviors_levels(file)
-# plot_behaviors_levels(dat_files["File"][2])
+
+for file_path in dat_files["File"][0:1]:
+    print(file_path)
+    start = time.time()
+    data = load_data(file_path)
+    mid = time.time()
+    plot_behaviors_levels(data, os.path.basename(os.path.dirname(file_path)))
+    end = time.time()
+    print('Data loading time: ', mid-start)
+    print('Interval computing time: ', end-mid)
+
+# plot_multiple_behaviors(dat_files["File"])
+
+## Metrics
