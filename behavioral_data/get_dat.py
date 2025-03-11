@@ -27,6 +27,6 @@ def extract_dat_paths(folder_path, output_csv, experiment_nums):
 
 folder_path = r"P:\Ca2+ Data\M2 - Jun24"
 output_csv = r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\paths\paths_dat\M2_dat_exp10_to_16.csv"
-experiment_nums = [f"0{i}" for i in range(10,17)]
+experiment_nums = [f"0{i}" for i in range(10,18)]
 
 extract_dat_paths(folder_path, output_csv, experiment_nums)
