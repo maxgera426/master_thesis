@@ -532,7 +532,7 @@ def plot_single_experiment(file_path):
     plt.barh(y=.375, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.25, color="darkred", edgecolor='black', label="moving to lever")
     plt.barh(y=.375, width = end_moving_to_z1 - start_moving_to_z1, left= start_moving_to_z1, height=0.25, color="tomato", edgecolor='black', label="moving to z1")
     plt.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to lever")
-    plt.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z1")
+    plt.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z2")
     plt.xlabel("Time (ms)")
     fig.legend(loc='center right')
     plt.title(title, loc='left', fontweight='bold')
@@ -590,7 +590,7 @@ def plot_behavior_levels(file_list):
             ax.barh(y=.375, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.25, color="darkred", edgecolor='black', label="moving to lever")
             ax.barh(y=.375, width = end_moving_to_z1 - start_moving_to_z1, left= start_moving_to_z1, height=0.25, color="tomato", edgecolor='black', label="moving to z1")
             ax.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to lever")
-            ax.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z1")
+            ax.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z2")
 
             ax.set_xlabel("Time (ms)")
             ax.set_title(re.search("Exp ...", os.path.basename(file_path)).group(), loc='left', fontweight= 'bold')
