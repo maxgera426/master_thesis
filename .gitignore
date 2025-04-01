@@ -164,6 +164,7 @@ cython_debug/
 # Data files
 paths/
 behavior descriptions/
+calcium_traces/
 
 # testing
 test.py

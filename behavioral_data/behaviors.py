@@ -596,7 +596,9 @@ def plot_behavior_levels(file_list):
             ax.set_title(re.search("Exp ...", os.path.basename(file_path)).group(), loc='left', fontweight= 'bold')
 
         handles, labels = ax.get_legend_handles_labels()
-        fig.legend(handles, labels, loc='center right') 
+        fig.legend(handles, labels, loc='center right')
+        title = "Behavior levels"
+        fig.suptitle(title, fontweight='bold') 
         plt.tight_layout(rect=[0, 0, 0.85, 1])
         plt.show()
     return
@@ -803,16 +805,15 @@ def plot_statistics(statistics, stat_types, partial = False, n = 0):
 
 def main():
     ##COMPUTE BEHAVIOR LEVELS DURING EXPERIMENTS
-    # file_list = pd.read_csv(r".\behavioral_data\paths\paths_dat\M2_dat_exp10_to_16.csv")["File"][0:1]
-    # save_behavior_description(file_list, r'C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session')
-
+    # file_list = pd.read_csv(r".\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv")["File"]
+    # compute_behavior_description(file_list, r".\behavioral_data\behavior descriptions\full session")
     ##COMPUTE METRICS ON SAVED BEHAVIOR DESCRIPTIONS
-    file_list = [r'.\behavioral_data\behavior descriptions\partial sessions\Exp 010\4_subdivisions' + "\\" + f for f in os.listdir(r'.\behavioral_data\behavior descriptions\partial sessions\Exp 010\4_subdivisions')]
+    file_list = [r'.\behavioral_data\behavior descriptions\full session\M2\\' + f for f in os.listdir(r'.\behavioral_data\behavior descriptions\full session\M2\\')]
     # compute_partial_behavior_description([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"], r'C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\partial sessions', 4)
-    # statistics = compute_metrics(file_list)
-    # plot_statistics(statistics, ["Press", "Drinking", "Task"], partial=True, n=4)
+    statistics = compute_metrics(file_list)
+    plot_statistics(statistics, ["Press", "Drinking", "Task"], partial=False, n=4)
     
-    plot_behavior_levels(file_list)
-    plot_behavior_levels([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"])
+    # plot_behavior_levels(file_list)
+    # plot_behavior_levels([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"])
 if __name__ == "__main__": 
     main()

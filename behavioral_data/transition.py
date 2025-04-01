@@ -8,7 +8,7 @@ def get_transition_matrix(file_path):
     data = pd.read_csv(file_path)
     states = []
     for column_name in data.columns:
-        if "Start" in column_name:
+        if "Start" in column_name and "Press" not in column_name and "Lever Task" not in column_name and "Trough Task" not in column_name:
             states.append(column_name.split("Start")[0])
 
     state_df = pd.DataFrame(columns=["state", "time"])
@@ -27,8 +27,9 @@ def get_transition_matrix(file_path):
     return transition_matrix
 
 def plot_transition_matrix(file_list):
-    states = ['Press.', 'Drink. Full', 'Drink. Empty', 'Lever Task', 'Trough Task', 'Off Task', 'Seq.', 'Mov. Lever', 'Mov. Trough', 'Mov. To Zone 1', 'Mov. To Zone 2']
+    states = ['Drink. Full', 'Drink. Empty', 'Off Task', 'Seq.', 'Mov. Lever', 'Mov. Trough', 'Mov. To Zone 1', 'Mov. To Zone 2']
     if len(file_list) == 1:
+        print(file_list[0])
         transition_matrix = get_transition_matrix(file_list[0])
         plt.figure()
         sns.heatmap(transition_matrix, annot=True, cmap = 'Reds', square=True, xticklabels=states, yticklabels=states)
@@ -49,5 +50,5 @@ def plot_transition_matrix(file_list):
         plt.tight_layout()
         plt.show()
 
-file_list = [r"behavioral_data\behavior descriptions\full session\\" + f for f in os.listdir(r"behavioral_data\behavior descriptions\full session")]
-plot_transition_matrix(file_list)
+file_list = [r"behavioral_data\behavior descriptions\full session\M2\\" + f for f in os.listdir(r"behavioral_data\behavior descriptions\full session\M2")]
+plot_transition_matrix(file_list[0:1])
