@@ -165,6 +165,7 @@ cython_debug/
 paths/
 behavior descriptions/
 calcium_traces/
+cell_props/
 
 # testing
 test.py

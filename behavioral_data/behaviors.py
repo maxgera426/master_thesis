@@ -710,6 +710,11 @@ def get_task_statistics(lever_start, lever_end, trough_start, trough_end, off_st
     }
     return statistics_dict
 
+def get_total_time(start, end):
+    diff = end - start
+    total_time = np.sum(diff)/1000
+    return total_time
+
 def plot_statistics(statistics, stat_types, partial = False, n = 0):
     experiment_list = statistics.keys()
     for type in stat_types:
