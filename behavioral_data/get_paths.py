@@ -4,12 +4,12 @@ import csv
 # Extract all the .dat paths in a specified folder corresponding to a list of experiments. 
 # The paths are stored in a specified csv file
 
-def extract_dat_paths(folder_path, output_csv, experiment_nums):
+def extract_paths(folder_path, output_csv, experiment_nums, extension):
     dat_files = []
 
     for root, dirs, files in os.walk(folder_path):
         for file in files:
-            if file.endswith(".dat"):
+            if file.endswith(extension):
                 if any(f"{num}" in root for num in experiment_nums):
                     dat_files.append(os.path.join(root, file))
     
@@ -27,7 +27,7 @@ def extract_dat_paths(folder_path, output_csv, experiment_nums):
 
 folder_path = r"P:\Ca2+ Data\M15 - Jun24"
 
-output_csv = r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv"
+output_csv = r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\paths\paths_mp4\M15_mp4_exp10_to_17.csv"
 experiment_nums = [f"0{i}" for i in range(10,18)]
 
-extract_dat_paths(folder_path, output_csv, experiment_nums)
+extract_paths(folder_path, output_csv, experiment_nums, "filtered.csv")

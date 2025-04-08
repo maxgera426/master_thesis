@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-def get_transition_matrix(file_path):
+def get_transition_matrix(file_path, full_cycle_order):
     data = pd.read_csv(file_path)
-    full_cycle_order = ['Sequence ', 'Moving To Zone 1 ', 'Moving To Trough ', 'Drinking Full ', 'Moving To Zone 2 ', 'Moving To Lever ', 'Drinking Empty ', 'Off Task ']
     states = []
     for column_name in data.columns:
         if "Start" in column_name and "Press" not in column_name and "Lever Task" not in column_name and "Trough Task" not in column_name:
@@ -28,11 +27,10 @@ def get_transition_matrix(file_path):
 
     return transition_matrix
 
-def plot_transition_matrix(file_list):
+def plot_transition_matrix(matrices):
     states = ['Seq.', 'Mov. To Zone 1', 'Mov. Trough', 'Drink. Full', 'Mov. To Zone 2', 'Mov. Lever', 'Drink. Empty', 'Off Task']
-    if len(file_list) == 1:
-        print(file_list[0])
-        transition_matrix = get_transition_matrix(file_list[0])
+    if len(matrices) == 1:
+        transition_matrix = matrices[0]
         plt.figure()
         sns.heatmap(transition_matrix, annot=True, cmap = 'Reds', square=True, xticklabels=states, yticklabels=states)
         plt.ylabel("From behavior")
@@ -41,16 +39,25 @@ def plot_transition_matrix(file_list):
         plt.tight_layout()
         plt.show()
     else:
-        fig, axs = plt.subplots(2, len(file_list)//2)
-        for file in file_list:  
-            transition_matrix = get_transition_matrix(file)
+        fig, axs = plt.subplots(2, len(matrices)//2)
+        for transition_matrix in matrices:  
             sns.heatmap(transition_matrix, annot=True, cmap = 'Reds', square=True, xticklabels=states, yticklabels=states, cbar=False, ax=axs[file_list.index(file)//4][file_list.index(file)%4])
-            axs[file_list.index(file)//4][file_list.index(file)%4].set_ylabel("From behavior")
-            axs[file_list.index(file)//4][file_list.index(file)%4].set_xlabel("To behavior")
+            axs[matrices.index(transition_matrix)//4][matrices.index(transition_matrix)%4].set_ylabel("From behavior")
+            axs[matrices.index(transition_matrix)//4][matrices.index(transition_matrix)%4].set_xlabel("To behavior")
             # axs[file_list.index(file)//4][file_list.index(file)%4].set_title("Transition Matrix")
         plt.title("Transition Matrix")
         plt.tight_layout()
         plt.show()
 
-file_list = [r"behavioral_data\behavior descriptions\full session\M2\\" + f for f in os.listdir(r"behavioral_data\behavior descriptions\full session\M2")]
-plot_transition_matrix(file_list[0:1])
+mice = ["M2", "M4", "M15"]
+full_cycle_order = ['Sequence ', 'Moving To Zone 1 ', 'Moving To Trough ', 'Drinking Full ', 'Moving To Zone 2 ', 'Moving To Lever ', 'Drinking Empty ', 'Off Task ']
+transition_matrices = [np.zeros((8,8)) for _ in range(len(full_cycle_order))]
+
+for mouse in mice:
+    file_list = [r"behavioral_data\behavior descriptions\full session\\" + mouse + os.sep +  f for f in os.listdir(r"behavioral_data\behavior descriptions\full session\\" + mouse)]
+    for i, file in enumerate(file_list):
+        matrix = get_transition_matrix(file, full_cycle_order)
+        transition_matrices[i] += matrix
+
+plot_transition_matrix([transition_matrices[-2]])
+
