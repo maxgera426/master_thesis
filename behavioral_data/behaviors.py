@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import itertools
 import os
-import movie_data
-import seaborn as sns
 import re
 
 column_names = ['time','family', 'num', 'P', 'V', 'L', 'R', 'T','W', 'X', 'Y', 'Z']
@@ -813,12 +811,12 @@ def main():
     # file_list = pd.read_csv(r".\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv")["File"]
     # compute_behavior_description(file_list, r".\behavioral_data\behavior descriptions\full session")
     ##COMPUTE METRICS ON SAVED BEHAVIOR DESCRIPTIONS
-    file_list = [r'.\behavioral_data\behavior descriptions\full session\M2\\' + f for f in os.listdir(r'.\behavioral_data\behavior descriptions\full session\M2\\')]
+    # file_list = [r'.\behavioral_data\behavior descriptions\full session\M2\\' + f for f in os.listdir(r'.\behavioral_data\behavior descriptions\full session\M2\\')]
     # compute_partial_behavior_description([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"], r'C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\partial sessions', 4)
-    statistics = compute_metrics(file_list)
-    plot_statistics(statistics, ["Press", "Drinking", "Task"], partial=False, n=4)
+    # statistics = compute_metrics(file_list)
+    # plot_statistics(statistics, ["Press", "Drinking", "Task"], partial=False, n=4)
     
-    # plot_behavior_levels(file_list)
+    plot_behavior_levels([r"behavioral_data\behavior descriptions\full session\M2\M2 - Jun24_Exp 010_behavior_description.csv"])
     # plot_behavior_levels([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"])
 if __name__ == "__main__": 
     main()

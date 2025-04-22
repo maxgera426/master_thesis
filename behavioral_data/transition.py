@@ -32,7 +32,9 @@ def plot_transition_matrix(matrices):
     if len(matrices) == 1:
         transition_matrix = matrices[0]
         plt.figure()
-        sns.heatmap(transition_matrix, annot=True, cmap = 'Reds', square=True, xticklabels=states, yticklabels=states)
+        annot_labels = np.array([[str(int(val)) for val in row] for row in transition_matrix])
+        sns.heatmap(transition_matrix, annot=annot_labels, fmt="", cmap='Reds', square=True, 
+                   xticklabels=states, yticklabels=states)
         plt.ylabel("From behavior")
         plt.xlabel("To behavior")
         plt.title("Transition Matrix")
@@ -41,7 +43,9 @@ def plot_transition_matrix(matrices):
     else:
         fig, axs = plt.subplots(2, len(matrices)//2)
         for transition_matrix in matrices:  
-            sns.heatmap(transition_matrix, annot=True, cmap = 'Reds', square=True, xticklabels=states, yticklabels=states, cbar=False, ax=axs[file_list.index(file)//4][file_list.index(file)%4])
+            annot_labels = np.array([[str(int(val)) for val in row] for row in transition_matrix])
+            sns.heatmap(transition_matrix, annot=annot_labels, fmt="", cmap='Reds', square=True, 
+                   xticklabels=states, yticklabels=states)            
             axs[matrices.index(transition_matrix)//4][matrices.index(transition_matrix)%4].set_ylabel("From behavior")
             axs[matrices.index(transition_matrix)//4][matrices.index(transition_matrix)%4].set_xlabel("To behavior")
             # axs[file_list.index(file)//4][file_list.index(file)%4].set_title("Transition Matrix")

@@ -166,7 +166,8 @@ paths/
 behavior descriptions/
 calcium_traces/
 cell_props/
-
+percentiles/
+.vscode/
 # testing
 test.py
 data.csv

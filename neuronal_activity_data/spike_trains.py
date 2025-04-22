@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from scipy.signal import find_peaks
+from scipy.stats import percentileofscore
 
 def load_data(file_path):
     print("Processing file: ", file_path)
@@ -87,33 +88,84 @@ def freq_behavior(peak_times, behavior_times):
     occ = 0
     total_time = np.sum(behavior_times[:, 1] - behavior_times[:, 0])/1000
     for start, end in behavior_times:
-        occ += np.sum((peak_times >= start) & (peak_times <= end))
+        occ += np.sum((peak_times>= start) & (peak_times <= end))
     return occ/total_time
 
+def shift_trace(peak_times, offset, total_t):
+    shifted_peaks = np.mod(peak_times + offset, max_t)
+    shifted_peaks.sort() 
+    return shifted_peaks
 
-exp_list = [f"0{i}" for i in range(10, 11)]
-folder_path = r"P:\Ca2+ Data\M4 - Jun24"
+def save_cell_traces(file_list):
+    for file_path in file_list:
+        data, props = load_data(file_path)
+        cell_names = list(data.columns[1:])
+        acc_cells = filter_by_status(props)
 
-file_list = get_file_list(exp_list, folder_path)
-print(file_list)
-for file_path in file_list:
-    data, props = load_data(file_path)
-    cell_names = list(data.columns[1:])
-    acc_cells = filter_by_status(props)
-    # acc_cells = []
-    # for cell in cell_names:
-    #     trace = data[cell]
-    #     pnr_christophe, pnr_mad, trace_filtree, peak_indx = pnr(trace)
-    #     if pnr_christophe > 3.5 and pnr_mad > 7.5:
-    #         acc_cells.append(cell)
+        exp_num = os.path.basename(os.path.dirname(file_path))
+        acc_data = data[["Time"] + acc_cells]
+        save_file = r"neuronal_activity_data\calcium_traces\M4\status_based_2\\" + exp_num + "_" + os.path.splitext(os.path.basename(file_path))[0] + "_accepted_traces.csv"
+        acc_data.to_csv(save_file, index=False)
+
+def compute_probability(behavior_file, behavior_list, peak_times, max_t):
+    offsets = np.array(list(range(-1000, -99)) + list(range(100, 1001)))*1000
+    offsets = offsets/10
+
+    behaviors_description = pd.read_csv(behavior_file)
+    behavior_windows = {}
+    for behavior in behavior_list:
+        behavior_windows[behavior] = behaviors_description[[behavior + " Start", behavior + " End"]].dropna().values
     
-    exp_num = os.path.basename(os.path.dirname(file_path))
-    acc_data = data[["Time"] + acc_cells]
-    save_file = r"neuronal_activity_data\calcium_traces\M4\status_based_2\\" + exp_num + "_" + os.path.splitext(os.path.basename(file_path))[0] + "_accepted_traces.csv"
-    acc_data.to_csv(save_file, index=False)
+    org_freqs = np.array([freq_behavior(peak_times, behavior_windows[behavior]) for behavior in behavior_list])
+    
+    offset_frequencies = np.zeros((len(offsets), len(behavior_list)))
+    for i, offset in enumerate(offsets):
+        # Vectorized shift operation
+        shifted_peaks = np.mod(peak_times + offset, max_t)
+        shifted_peaks.sort()  # Sort in-place
+        
+        for j, behavior in enumerate(behavior_list):
+            offset_frequencies[i, j] = freq_behavior(shifted_peaks, behavior_windows[behavior])
+    
+    # Calculate percentiles
+    percentiles = [percentileofscore(offset_frequencies[:, i], org_freqs[i]) for i in range(len(behavior_list))]
 
-# neuron_file_path = r"neuronal_activity_data\calcium_traces\M2\status_based_2\Exp 010_M2_240619_FR1_1_CellTraces_accepted_traces.csv"
-# behavior_file_path = r"behavioral_data\behavior descriptions\full session\M2\M2 - Jun24_Exp 010_behavior_description.csv"
-# cell_traces = pd.read_csv(neuron_file_path)
-# behavior_list = ['Sequence', 'Moving To Zone 1', 'Moving To Trough', 'Drinking Full', 'Moving To Zone 2', 'Moving To Lever', 'Drinking Empty', 'Off Task']
-# compute_freq(cell_traces, behavior_list, behavior_file_path)
+    return percentiles
+
+def detect_peaks(cell_traces):
+    cells = list(cell_traces.columns[1:])
+    peaks_dict = {}
+    for cell in cells:
+        trace = cell_traces[cell]
+        mean = np.mean(trace)
+        std = np.std(trace)
+        min_h = mean + 3 * std
+        peak_indices, _ = find_peaks(trace, height=min_h, prominence=min_h/3)
+
+        if len(peak_indices) > 0:
+            peak_times = cell_traces["Time"][peak_indices]
+            peak_times = np.array(peak_times)*1000
+            peaks_dict[cell] = peak_times
+    return peaks_dict
+
+trace_dir = r"neuronal_activity_data\calcium_traces\M15\status_based_2\\"
+behavior_dir = r"behavioral_data\behavior descriptions\full session\M15\\"
+trace_file_list = [trace_dir + f for f in os.listdir(trace_dir)]
+behavior_file_list = [behavior_dir + f  for f in os.listdir(behavior_dir)]
+print(len(behavior_file_list), len(trace_file_list))
+for neuron_file_path, behavior_file_path in zip(trace_file_list, behavior_file_list):
+    cell_traces = pd.read_csv(neuron_file_path)
+    max_t = np.max(cell_traces["Time"])*1000
+    peaks = detect_peaks(cell_traces)
+    behavior_list = ['Sequence', 'Moving To Zone 1', 'Moving To Trough', 'Drinking Full', 'Moving To Zone 2', 'Moving To Lever', 'Drinking Empty', 'Off Task']
+    save_df = pd.DataFrame(columns=["Cell"] + behavior_list)
+
+    for cell, peak_list in peaks.items():
+        percentiles = compute_probability(behavior_file_path, behavior_list, peak_list, max_t)
+        new_row = pd.Series([cell] + percentiles, index=["Cell"] + behavior_list)
+        save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
+
+    exp_num = os.path.basename(neuron_file_path)[:7]
+    save_name = r"neuronal_activity_data\percentiles\M15\\" + exp_num + "_percentiles.csv"
+    save_df.to_csv(save_name, index=False)
+

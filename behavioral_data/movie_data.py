@@ -3,9 +3,9 @@ import numpy as np
 import plotly.graph_objects as go
 import os
 from scipy.spatial import ConvexHull
+from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 import matplotlib.pyplot as plt
-from time import time
 
 
 # This script handles the data extracted from the movie of the mouse movements taken during the experiments
@@ -63,9 +63,14 @@ def rotate_data(data, rect):
     longest_edge = max(edges, key=lambda x: x[0])
     p1, p2 = longest_edge[1], longest_edge[2]
 
-    # Compute angle of the longest edge with vertical
+    # Compute angle of the longest edge with horizontal
     dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-    rotation_angle = np.arctan2(dx, dy)
+    rotation_angle = np.arctan2(dy, dx) # if you want angle with vertical swap dy and dx
+
+    if p1[1] > p2[1]:
+        rotation_angle = np.abs(rotation_angle)
+    elif p1[1] < p2[1]:
+        rotation_angle = -np.abs(rotation_angle)
 
     rotation_matrix = np.array([
         [np.cos(rotation_angle), -np.sin(rotation_angle), 0],
@@ -96,8 +101,6 @@ def rotate_data(data, rect):
 
     final_rect = np.array([rotated_rect[0], rotated_rect[1]])
     return final_rect, rotated_data
-
-
 
 def plot_positions(data, body_part, rect_coords):
     
@@ -137,55 +140,7 @@ def plot_positions(data, body_part, rect_coords):
     x_min, y_min = rect_coords[0].min(), rect_coords[1].min()
     x_max, y_max = rect_coords[0].max(), rect_coords[1].max()
     rect_coords = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]])
-
-    width, height = rect_coords[2] - rect_coords[0]
-    f_height = height/22
-    mouse_length = 5*f_height
-    lever_zone = np.array([[x_min, y_max - mouse_length], [x_min + width / 2, y_max - mouse_length], [x_min + width / 2, y_max], [x_min, y_max]])
-    trough_zone = np.array([[x_min + width / 2, y_max - mouse_length], [x_max, y_max - mouse_length], [x_max, y_max], [x_min + width / 2, y_max]])
-
-    top_right_corner_zone = np.array([[x_max - 1/5*width, y_min], [x_max, y_min], [x_max, y_min + 1/5*width], [x_max - 1/5*width, y_min + 1/5*width]])
-    top_left_corner_zone = np.array([[x_min, y_min], [x_min + 1/5*width, y_min], [x_min + 1/5*width, y_min + 1/5*width], [x_min, y_min + 1/5*width]])
-
-    fig.add_trace(go.Scatter(
-        x=np.append(lever_zone[:, 0], lever_zone[:, 0][0]),
-        y=np.append(lever_zone[:, 1], lever_zone[:, 1][0]),
-        mode='lines',
-        name='Lever Zone',
-        line=dict(color='red')
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=np.append(trough_zone[:, 0],trough_zone[:, 0][0]),
-        y=np.append(trough_zone[:, 1],trough_zone[:, 1][0]),
-        mode='lines',
-        name='Trough Zone',
-        line=dict(color='green')
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=np.append(top_right_corner_zone[:, 0], top_right_corner_zone[:, 0][0]),
-        y=np.append(top_right_corner_zone[:, 1], top_right_corner_zone[:, 1][0]),
-        mode='lines',
-        name='Top Right Corner Zone',
-        line=dict(color='purple')
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=np.append(top_left_corner_zone[:, 0], top_left_corner_zone[:, 0][0]),
-        y=np.append(top_left_corner_zone[:, 1], top_left_corner_zone[:, 1][0]),
-        mode='lines',
-        name='Top Left Corner Zone',
-        line=dict(color='orange')
-    ))
-    # Show the figure
     fig.show()
-
-
-# def positions_time(data, body_parts, likelihood_threshold=0.95):
-#     # Function to create data frame containing all significant positions in the order specified by body_parts list
-    
-#     for part in body_parts:
 
 
 def get_zone(data, body_part, rect_coords):
@@ -208,11 +163,17 @@ def get_zone(data, body_part, rect_coords):
 
     zone_intervals = data.groupby(['group', 'zone']).agg(start_time=('time', 'first'), end_time=('time', 'last')).reset_index().drop(columns=['group'])
     return zone_intervals
-    
 
-def main():
-    # Load the data
-    file_path = r"P:\Ca2+ Data\F5\Exp012\F5_230124_day2DLC_resnet50_Ethogram operantApr12shuffle1_100000.csv"
+def all_points(data, body_parts, likelihood = 0.95):
+    total_data = pd.DataFrame(columns=['all_x', 'all_y'])
+    for part in body_parts:
+        part_data = data[(data[f'{part}_likelihood'] > likelihood)][[f'{part}_x', f'{part}_y']]
+        part_data.columns = ['all_x', 'all_y']
+        total_data = pd.concat([total_data, part_data], ignore_index=True)
+    
+    return total_data
+
+def load_data(file_path):
     column_names = ['frame number', 'neck_x', 'neck_y', 'neck_likelihood', 'body1_x', 'body1_y', 'body1_likelihood',
                     'body2_x', 'body2_y', 'body2_likelihood', 'body3_x', 'body3_y', 'body3_likelihood', 'tail_start_x',
                     'tail_start_y', 'tail_start_likelihood', 'tail_end_x', 'tail_end_y', 'tail_end_likelihood',
@@ -221,30 +182,153 @@ def main():
                     'pawR_likelihood', 'pawL_x', 'pawL_y', 'pawL_likelihood']
     if os.path.exists(file_path):
         data = pd.read_csv(file_path, skiprows=3, header=None, names=column_names)
+        data['Time'] = data['frame number'] / 20 * 1000 # ms
+        return data
     else:
         print("File not found")
         return
 
+def moving(positions, units, total_t = 1200000):
+    x_body1 = positions[:, 0]
+    y_body1 = positions[:, 1]
+    time = positions[:, 2]
+    real_time = np.arange(0, total_t + 1, 50)
+    delta_t = np.diff(real_time)
+    x_interp = np.interp(real_time, time, x_body1)
+    y_interp = np.interp(real_time, time, y_body1)
+
+    smooth_x = savgol_filter(x_interp, 31, 3)
+    smooth_y = savgol_filter(y_interp, 31, 3)
+
+    v_t = np.sqrt(np.diff(smooth_x)**2 + np.diff(smooth_y)**2)/(delta_t[0])*1000*units # cm/s
+    # v_stats = {
+    #     'mean': np.mean(v_t),
+    #     'median': np.median(v_t),
+    #     'std': np.std(v_t),
+    #     'min': np.min(v_t),
+    #     'max': np.max(v_t),
+    #     '25th': np.percentile(v_t, 25),
+    #     '75th': np.percentile(v_t, 75)
+    # }
+
+    velocity_threshold = 1.5 #v_stats['25th'] + 0.5 * (v_stats['75th'] - v_stats['25th'])
+    is_moving = v_t > velocity_threshold
+    transitions = np.diff(is_moving.astype(int))
+    start_moving = np.where(transitions == 1)[0] + 1
+    stop_moving = np.where(transitions == -1)[0] + 1
+    
+    if len(start_moving) > 0 and len(stop_moving) > 0:
+        if start_moving[0] > stop_moving[0]:
+            start_moving = np.insert(start_moving, 0, 0)
+        if start_moving[-1] > stop_moving[-1]:
+            stop_moving = np.append(stop_moving, len(is_moving))
+    
+    # Calcul des durées et distances de chaque segment de mouvement
+    movement_segments = []
+    if len(start_moving) > 0 and len(stop_moving) > 0:
+        min_length = min(len(start_moving), len(stop_moving))
+        for i in range(min_length):
+            start_idx = start_moving[i]
+            stop_idx = stop_moving[i]
+            segment_duration = (real_time[stop_idx] - real_time[start_idx]) / 1000  # en secondes
+            
+            # Distance parcourue pendant ce segment
+            dx = x_interp[stop_idx] - x_interp[start_idx]
+            dy = y_interp[stop_idx] - y_interp[start_idx]
+            distance = np.sqrt(dx**2 + dy**2) * units
+            
+            # Vitesse moyenne pendant ce segment
+            avg_velocity = distance / segment_duration if segment_duration > 0 else 0
+            if (segment_duration >= 0.5) & (distance >= 2):
+                movement_segments.append((
+                    real_time[start_idx]/1000,  # en secondes
+                    real_time[stop_idx]/1000,    # en secondes
+                    segment_duration,             # en secondes
+                    distance,                     # en unités fournies
+                    avg_velocity              # unités/seconde
+                ))
+    
+    # # Afficher la vitesse instantanée avec le seuil
+    # plt.figure(figsize=(14, 8))
+    # plt.subplot(211)
+    # plt.plot(real_time[1:]/1000, v_t, label="Vitesse instantanée")
+    # plt.axhline(y=velocity_threshold, color='r', linestyle='--', label=f'Seuil: {velocity_threshold:.4f} cm/s')
+    # plt.xlabel('Temps (secondes)')
+    # plt.ylabel('Vitesse (cm/s)')
+    # plt.title('Vitesse instantanée et seuil de détection')
+    # plt.legend()
+    # plt.grid(True)
+    
+    # # Visualiser les positions avec les périodes de mouvement surlignées
+    # plt.subplot(212)
+    # plt.plot(real_time/1000, x_interp * units, label="Position X")
+    # plt.plot(real_time/1000, y_interp * units, label="Position Y")
+    
+    # # Surligner les périodes de mouvement
+    # for segment in movement_segments:
+    #         plt.axvspan(segment[0], segment[1], 
+    #                    alpha=0.2, color='green')
+    
+    # plt.xlabel('Temps (secondes)')
+    # plt.ylabel('Position (cm)')
+    # plt.title('Positions avec périodes de mouvement surlignées')
+    # plt.legend()
+    # plt.grid(True)
+    
+    # plt.tight_layout()
+    # plt.show()
+    
+    return movement_segments
+
+def get_file_list(folder_path):
+    file_list = []
+    experiment_nums = [f"0{i}" for i in range(10,18)]
+
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith("filtered.csv"):
+                if any(f"{num}" in root for num in experiment_nums):
+                    file_list.append(os.path.join(root, file))
+    return file_list
+
+def save_movement_description(list, exp_num):
+    columns = ["Start", "Stop", "Duration", "Distance", "Avg velocity"]
+    movement_df = pd.DataFrame(list, columns=columns)
+    save_file = r"behavioral_data\behavior descriptions\movement_description\M15\\" + exp_num + "_movement_segments.csv"
+    movement_df.to_csv(save_file, index=False)
+
+def main():
+    # Load the data
+    cage_dimensions = (22, 15.5) # cm 
+    dir = r"P:\Ca2+ Data\M15 - Jun24\\"
     likelihood_threshold = 0.95
-    body_part = 'camera'
-    data['time'] = data['frame number'] / 20 * 1000 # ms
-
+    body_part = 'body1'
     body_parts = ['neck', 'body1', 'body2', 'body3', 'tail_start', 'tail_end', 'camera', 'earR', 'earL', 'nose', 'pawR', 'pawL']
-    total_data = pd.DataFrame(columns=['all_x', 'all_y'])
-    for part in body_parts:
-        part_data = data[(data[f'{part}_likelihood'] > likelihood_threshold)][[f'{part}_x', f'{part}_y']]
-        part_data.columns = ['all_x', 'all_y']
-        total_data = pd.concat([total_data, part_data], ignore_index=True)
-    # Find the corners of the datafrance fffr
-    rect_coords = find_rectangle(total_data).T
-    filtered_data = data[(data[f'{body_part}_likelihood'] > likelihood_threshold)]
-    # Rotate the data
-    rect_coords, rotated_data = rotate_data(filtered_data, rect_coords)
+    file_list = get_file_list(dir)
+    for file_path in file_list:
+        print("Processing: ", file_path)
+        data = load_data(file_path)
+        total_t = np.max(data["Time"])
+        total_data = all_points(data, body_parts, likelihood_threshold)
 
-    plot_positions(rotated_data, body_part, rect_coords)
-    # positions_time(data, mean_pos=mean_positions, body_part=body_part, likelihood_threshold=likelihood_threshold)
-    zone_intervals = get_zone(rotated_data, body_part, rect_coords)
-    return zone_intervals
+        # Find the corners of the cage
+        rect_coords = find_rectangle(total_data).T
+        likelihood_threshold = 0.80 # smaller to include more points
+        filtered_data = data[(data[f'{body_part}_likelihood'] > likelihood_threshold)]
+        # Rotate the data to compensate fisheye effect
+        rect_coords, rotated_data = rotate_data(filtered_data, rect_coords)
+        x_diff = max(rect_coords[0]) - min(rect_coords[0])
+        y_diff = max(rect_coords[1]) - min(rect_coords[1])
+        length = max(x_diff, y_diff)
+        width = min(x_diff, y_diff)
+        x_factor = cage_dimensions[0] / length
+        y_factor = cage_dimensions[1] / width
+        pixel_to_cm = np.mean([x_factor, y_factor])
+
+        movement_segments = moving(rotated_data[[f"{body_part}_x", f'{body_part}_y', 'Time']].values, pixel_to_cm, total_t)
+        exp_num = os.path.basename(os.path.dirname(file_path))
+        save_movement_description(movement_segments, exp_num)
+    return 0
 
 
 if __name__ == "__main__":
