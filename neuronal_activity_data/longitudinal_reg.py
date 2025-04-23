@@ -1,83 +1,93 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
 import os
-import random
+import csv
 
 
-def load_data_from_serv(file_path):
+def load_data(file_path):
     print("Processing file: ", file_path)
-    props_data = pd.read_csv(file_path)
-    props_data = props_data[props_data["Status"]=="accepted"][["Name","CentroidX", 'CentroidY', "Size"]]
-    return props_data
+    correspondences_path = file_path.split(".")[0] + "_Correspondences.csv"
+    correspondences = pd.read_csv(correspondences_path)
+    return correspondences
 
-def load_local_data(file_path):
-    props_data = pd.read_csv(file_path)
-    return props_data
+def save_data_behavior(output_file, dict):
+    with open(output_file, 'w', newline='') as csvfile:
+        fieldnames = ['Cell', 'Sequence', 'Moving To Zone 1', 'Moving To Trough', 'Drinking Full', 'Moving To Zone 2', 'Moving To Lever', 'Drinking Empty', 'Off Task']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-def plot_cells(position_data):
-    plt.figure()
-    for x, y, size in zip(position_data['CentroidX'], position_data['CentroidY'], position_data["Size"]):
-        color = (random.random(), random.random(), random.random())
-        plt.gca().add_patch(Circle((x,y), size/2, color= color, alpha = 1.0))
+        writer.writeheader()
+        for key, values in dict.items():
+            if int(key) < 10:
+                cell_name = f"C0{key}"
+            else :
+                cell_name = f'C{key}'
+            for v in values:
+                row_dict = {
+                    'Cell': cell_name,
+                    'Sequence': v[0],
+                    'Moving To Zone 1': v[1],
+                    'Moving To Trough': v[2],
+                    'Drinking Full': v[3],
+                    'Moving To Zone 2': v[4],
+                    'Moving To Lever': v[5],
+                    'Drinking Empty': v[6],
+                    'Off Task': v[7]
+                }
+                writer.writerow(row_dict)
 
-    plt.xlim(0, 300)
-    plt.ylim(0, 200)
-    plt.axis('equal')
-    plt.show()
+def save_data_movement(output_file, dict):
+    with open(output_file, 'w', newline='') as csvfile:
+        fieldnames = ['Cell', 'Moving', 'Not Moving']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-def get_file_list(exp_list, folder_path):
-    file_list = []
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith("CellTraces-props.csv"):
-                if any(f"{exp}" in root for exp in exp_list):
-                    file_list.append(os.path.join(root, file))
-    return file_list
+        writer.writeheader()
+        for key, values in dict.items():
+            if int(key) < 10:
+                cell_name = f"C0{key}"
+            else :
+                cell_name = f'C{key}'
+            for v in values:
+                row_dict = {
+                    'Cell': cell_name,
+                    'Moving': v[0],
+                    'Not Moving': v[1]
+                }
+                writer.writerow(row_dict)
 
-def compute_distance(pop1, pop2):
-    distances = []
-    for _, row1 in pop1.iterrows():
-        name1, x1, y1, size1 = row1
-        pos1 = np.array((x1, y1))
-        for _, row2 in pop2.iterrows():
-            name2, x2, y2, size2 = row2
-            pos2 = np.array((x2, y2))
-            dist = np.linalg.norm(pos1-pos2)
-            if dist:
-                distances.append(dist)
-            # print(f"Distance btw {name1} and {name2}: ", dist)
-    return distances
+def fetch_percentiles(correspondences):
+    percentiles = {}
 
-def distance_map(list_distances, max_dist, unit):
-    distance_map = np.zeros((int(max_dist)+1)*10)
-    for cell_pair_distances in list_distances:
-        for dist in cell_pair_distances:
-            distance_map[int(dist*unit*10)] += 1
-    return distance_map
+    for _, row in correspondences.iterrows():
+        cell_id = int(row["global_cell_index"])
+        corresponding_id = str(int(row["local_cell_index"]))
+        corresponding_session = int(row["local_cellset_index"])
+        percentile_file = percentile_files[corresponding_session+1]
+        percentile_data = pd.read_csv(percentile_file)
+        cell_list = list(percentile_data["Cell"].values)
 
-dirs = [r"neuronal_activity_data\cell_props\\" + name for name in ["M2"]]
+        possible_cell_names = [f'C{corresponding_id}', f'C0{corresponding_id}', f'C00{corresponding_id}']
+        for id in possible_cell_names:
+            for name in cell_list:
+                print(cell_id, id, name)
+                if name == id:
+                    percentile_list = list(percentile_data[percentile_data["Cell"] == name].values)[0][1:]
+                    if cell_id not in percentiles.keys():
+                        percentiles[cell_id] = []
+                        percentiles[cell_id].append(percentile_list)
+                    else : 
+                        percentiles[cell_id].append(percentile_list)
+                    break
+    
+    return percentiles
 
-list_distances = []
-for dir in dirs:
-    file_list = [os.path.join(dir,f) for f in os.listdir(dir)]
-    for i in range(len(file_list)-1):
-        for j in range(i+1, len(file_list)):
-            file1 = file_list[i]
-            file2 = file_list[j]
-            pop1 = load_local_data(file1)
-            pop2 = load_local_data(file2)
-            distances = compute_distance(pop1, pop2)
 
-            list_distances.append(distances)
-# plot_cells(load_local_data(r"neuronal_activity_data\cell_props\M2\Exp 010_M2_240619_FR1_1_CellTraces-props.csv"))
-p1 = np.array((0,0))
-p2 = np.array((200, 302)) # M2 = 302 x 200 pixels --- M4 = 307 x 200 pixels --- M15 = 292 x 200 pixels
-pixel_to_µm = 1 # M2 = 3.656 µm/pixel --- M4 = 3.458 µm/pixel --- M15 = 3.356 µm/pixel
-max_dist = 300 #np.linalg.norm(p1-p2)*pixel_to_μm
-distance_map = distance_map(list_distances, max_dist, pixel_to_μm)
-print(np.sum(distance_map))
-plt.figure()
-plt.bar(np.arange((max_dist +1 )*10)/10, distance_map, width=0.08)
-plt.show()
+file_path = r"P:\Ca2+ Data\M15 - Jun24\M15_longitudinal_reward.csv"
+percentile_dir = r"neuronal_activity_data\percentiles\M15\movement_related\\"
+percentile_files = [percentile_dir + f for f in os.listdir(percentile_dir)]
+correspondences = load_data(file_path)
+counts = correspondences["global_cell_index"].value_counts()
+indices = counts[counts>1].index
+correspondences = correspondences[correspondences["global_cell_index"].isin(indices)]
+
+percentiles = fetch_percentiles(correspondences)
+save_data_movement(r"neuronal_activity_data\percentiles\M15\movement_related\longitudinal.csv", percentiles)

@@ -92,7 +92,7 @@ def freq_behavior(peak_times, behavior_times):
     return occ/total_time
 
 def shift_trace(peak_times, offset, total_t):
-    shifted_peaks = np.mod(peak_times + offset, max_t)
+    shifted_peaks = np.mod(peak_times + offset, total_t)
     shifted_peaks.sort() 
     return shifted_peaks
 
@@ -107,7 +107,7 @@ def save_cell_traces(file_list):
         save_file = r"neuronal_activity_data\calcium_traces\M4\status_based_2\\" + exp_num + "_" + os.path.splitext(os.path.basename(file_path))[0] + "_accepted_traces.csv"
         acc_data.to_csv(save_file, index=False)
 
-def compute_probability(behavior_file, behavior_list, peak_times, max_t):
+def compute_behavior_probability(behavior_file, behavior_list, peak_times, max_t):
     offsets = np.array(list(range(-1000, -99)) + list(range(100, 1001)))*1000
     offsets = offsets/10
 
@@ -132,6 +132,43 @@ def compute_probability(behavior_file, behavior_list, peak_times, max_t):
 
     return percentiles
 
+def compute_movement_probability(movement_file, peak_times, max_t):
+    offsets = np.array(list(range(-1000, -99)) + list(range(100, 1001)))*1000
+    offsets = offsets/10
+
+    movement_segments = pd.read_csv(movement_file)
+    movement_windows = {}
+    movement_windows["Moving"] = movement_segments[['Start', 'Stop']].dropna().values*1000
+    not_moving_starts = movement_segments['Stop'].values[:-1]*1000
+    not_moving_stops = movement_segments['Start'].values[1:]*1000
+
+    if movement_segments['Start'].values[0] > 0:
+        not_moving_starts = np.insert(not_moving_starts, 0, 0)
+        not_moving_stops = np.insert(not_moving_stops, 0, movement_segments['Start'].values[0])
+
+    if movement_segments['Stop'].values[-1] < max_t:
+        not_moving_starts = np.append(not_moving_starts, movement_segments['Stop'].values[-1])
+        not_moving_stops = np.append(not_moving_stops, max_t)
+    
+    movement_windows["Not Moving"] = np.column_stack((not_moving_starts, not_moving_stops))
+    behavior_list = ['Moving', 'Not Moving']
+    
+    org_freqs = np.array([freq_behavior(peak_times, movement_windows[behavior]) for behavior in behavior_list])
+
+    offset_frequencies = np.zeros((len(offsets), len(behavior_list)))
+    for i, offset in enumerate(offsets):
+        # Vectorized shift operation
+        shifted_peaks = np.mod(peak_times + offset, max_t)
+        shifted_peaks.sort()  # Sort in-place
+        
+        for j, behavior in enumerate(behavior_list):
+            offset_frequencies[i, j] = freq_behavior(shifted_peaks, movement_windows[behavior])
+    
+    # Calculate percentiles
+    percentiles = [percentileofscore(offset_frequencies[:, i], org_freqs[i]) for i in range(len(behavior_list))]
+
+    return percentiles
+
 def detect_peaks(cell_traces):
     cells = list(cell_traces.columns[1:])
     peaks_dict = {}
@@ -146,26 +183,55 @@ def detect_peaks(cell_traces):
             peak_times = cell_traces["Time"][peak_indices]
             peak_times = np.array(peak_times)*1000
             peaks_dict[cell] = peak_times
+        else : 
+            print(cell)
+            print(peak_indices)
+            plot_cell_traces(cell_traces, ['C67'])
     return peaks_dict
 
-trace_dir = r"neuronal_activity_data\calcium_traces\M15\status_based_2\\"
-behavior_dir = r"behavioral_data\behavior descriptions\full session\M15\\"
-trace_file_list = [trace_dir + f for f in os.listdir(trace_dir)]
-behavior_file_list = [behavior_dir + f  for f in os.listdir(behavior_dir)]
-print(len(behavior_file_list), len(trace_file_list))
-for neuron_file_path, behavior_file_path in zip(trace_file_list, behavior_file_list):
+def save_behavior_percentiles(neuron_file_path, behavior_file_path):
     cell_traces = pd.read_csv(neuron_file_path)
+    print(cell_traces)
     max_t = np.max(cell_traces["Time"])*1000
     peaks = detect_peaks(cell_traces)
     behavior_list = ['Sequence', 'Moving To Zone 1', 'Moving To Trough', 'Drinking Full', 'Moving To Zone 2', 'Moving To Lever', 'Drinking Empty', 'Off Task']
     save_df = pd.DataFrame(columns=["Cell"] + behavior_list)
 
     for cell, peak_list in peaks.items():
-        percentiles = compute_probability(behavior_file_path, behavior_list, peak_list, max_t)
+        percentiles = compute_behavior_probability(behavior_file_path, behavior_list, peak_list, max_t)
+        print(cell, percentiles)
         new_row = pd.Series([cell] + percentiles, index=["Cell"] + behavior_list)
         save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
 
     exp_num = os.path.basename(neuron_file_path)[:7]
     save_name = r"neuronal_activity_data\percentiles\M15\\" + exp_num + "_percentiles.csv"
     save_df.to_csv(save_name, index=False)
+    return
 
+def save_movement_percentiles(neuron_file_path, movement_file_path):
+    cell_traces = pd.read_csv(neuron_file_path)
+    max_t = np.max(cell_traces["Time"])*1000
+    peaks = detect_peaks(cell_traces)
+    columns = ["Moving", "Not Moving"]
+    save_df = pd.DataFrame(columns=["Cell"] + columns)
+    behavior_list = ['Moving', 'Not Moving']
+
+    for cell, peak_list in peaks.items():
+        percentiles = compute_movement_probability(movement_file_path, peak_list, max_t)
+        print(cell, percentiles)
+        new_row = pd.Series([cell] + percentiles, index=["Cell"] + behavior_list)
+        save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
+
+    exp_num = os.path.basename(neuron_file_path)[:7]
+    save_name = r"neuronal_activity_data\percentiles\M15\movement_related\\" + exp_num + "_percentiles.csv"
+    save_df.to_csv(save_name, index=False)
+    return
+
+trace_dir = r"neuronal_activity_data\calcium_traces\M15\status_based_2\\"
+behavior_dir = r"behavioral_data\behavior descriptions\full session\M15\\"
+trace_file_list = [trace_dir + f for f in os.listdir(trace_dir)][6:7]
+behavior_file_list = [behavior_dir + f  for f in os.listdir(behavior_dir)][6:7]
+print(len(behavior_file_list), len(trace_file_list))
+
+for neuron_file_path, behavior_file_path in zip(trace_file_list, behavior_file_list):
+    save_behavior_percentiles(neuron_file_path, behavior_file_path)
