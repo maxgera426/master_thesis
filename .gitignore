@@ -171,3 +171,4 @@ percentiles/
 # testing
 test.py
 data.csv
+*.png

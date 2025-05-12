@@ -27,7 +27,7 @@ def extract_paths(folder_path, output_csv, experiment_nums, extension):
 
 folder_path = r"P:\Ca2+ Data\M15 - Jun24"
 
-output_csv = r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\paths\paths_mp4\M15_mp4_exp10_to_17.csv"
+output_csv = r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv"
 experiment_nums = [f"0{i}" for i in range(10,18)]
 
-extract_paths(folder_path, output_csv, experiment_nums, "filtered.csv")
+extract_paths(folder_path, output_csv, experiment_nums, ".dat")

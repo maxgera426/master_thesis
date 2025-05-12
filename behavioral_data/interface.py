@@ -64,8 +64,9 @@ if os.path.exists(file_path):
 
         if st.toggle("show filtered data") and len(filtered_data) > 0:
             st.dataframe(filtered_data, width=1300)
-            st.markdown("***Summary of the filtered data***")
-            st.write(filtered_data.describe())
+            if st.toggle("show summary of filtered data"):
+                st.markdown("***Summary of the filtered data***")
+                st.write(filtered_data.describe())
         elif len(filtered_data) == 0:
             st.write("No data to show")
 
@@ -374,9 +375,9 @@ if os.path.exists(file_path):
         st.header("Multiple families in the subplot")
 
 
-        index_list = [2, 4, 9]
+        index_list = [2, 5, 9]
 
-        family_list = ['Lever', 'Dispenser', 'Zone']
+        family_list = ['Lever', 'Liquid Dispenser', 'Zone']
 
         options = st.multiselect(
             'Events types to show',

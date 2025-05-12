@@ -207,6 +207,38 @@ def get_drinking_intervals(drinking_times, full_drinking_times, start_off_task):
 
     return start_full_drinking_df, end_full_drinking_df, empty_drinking_intervals
 
+def get_org_drinking_intervals(drinking_times, full_drinking_times):
+    limit = 1000 #ms
+
+    start_full_drinking_buffer = []
+    end_full_drinking_buffer = []
+    drinking_times = drinking_times.reset_index(drop=True)
+
+    current_start_idx = 0
+        
+    while current_start_idx + 9 < len(full_drinking_times):
+        # Record this interval
+        start_time = full_drinking_times.iloc[current_start_idx]
+        end_time = full_drinking_times.iloc[current_start_idx + 9]
+        
+        start_full_drinking_buffer.append(start_time)
+        end_full_drinking_buffer.append(end_time)
+        
+        # Move to the next index after this interval ends
+        current_start_idx = current_start_idx + 10
+
+    start_full_drinking_df = pd.DataFrame(start_full_drinking_buffer, columns=["time"])
+    end_full_drinking_df = pd.DataFrame(end_full_drinking_buffer, columns=["time"])
+
+    mask = drinking_times.apply(lambda t: any((start_full_drinking_df.iloc[:,0] <= t) & (end_full_drinking_df.iloc[:,0] >= t)))
+
+    empty_drinking_times = pd.DataFrame(drinking_times[~mask], columns=['time'] )
+    empty_drinking_times['diff'] = empty_drinking_times.diff()
+    empty_drinking_times['group'] = (empty_drinking_times['diff'] > limit).cumsum()
+    empty_drinking_intervals = empty_drinking_times.groupby('group')['time'].agg(['first', 'last'])
+
+    return start_full_drinking_df, end_full_drinking_df, empty_drinking_intervals
+
 def in_off_task(zone1_times, zone2_times, drinking_times, pressing_times, max_t = 1200000):
     # Returns df containing start and end times of moments when the mouse is in or off task
     in_lever_task_start_buffer = []
@@ -489,7 +521,7 @@ def correct_cut(start, end, start_times, end_times):
 def plot_single_experiment(file_path):
     data = load_data_from_behavior_csv(file_path)
     title = re.search("Exp ...", os.path.basename(file_path)).group()
-    fig = plt.figure(figsize=(12, 2))
+    fig = plt.figure(figsize=(12, 4))
 
     start_pressing_times = data['Pressing Start'].dropna()
     end_pressing_times = data['Pressing End'].dropna()
@@ -515,29 +547,101 @@ def plot_single_experiment(file_path):
     end_moving_to_trough = data["Moving To Trough End"].dropna()
     start_moving_to_z2 = data["Moving To Zone 2 Start"].dropna()
     end_moving_to_z2 = data["Moving To Zone 2 End"].dropna()
+    enter_zone1_times = data["Enter Zone 1"].dropna()
+    enter_zone2_times = data["Enter Zone 2"].dropna()
 
     plt.barh(y=1.25, width=np.array(end_pressing_times) - np.array(start_pressing_times), left=start_pressing_times, height=0.5, color="black", edgecolor='black', label='Press')
     plt.barh(y=.125, width=np.array(end_in_lever_task) - np.array(start_in_lever_task), left=start_in_lever_task, height=0.25, color="red", edgecolor='black', label='In lever task')
     plt.barh(y=.125, width=np.array(end_in_trough_task) - np.array(start_in_trough_task), left=start_in_trough_task, height=0.25, color="blue", edgecolor='black', label='In trough task')
-    plt.barh(y=0.125, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.25, color="gray", edgecolor='black', label='Off task')
-    plt.barh(y=1.875, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.25, color="purple", edgecolor='black', label='Drinking full')
-    plt.barh(y=1.875, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.25, color="orange", edgecolor='black', label='Drinking empty')
-    y_empty_drinking = [1.875]*len(empty_drinking_times)
-    y_full_drinking = [1.875]*len(full_drinking_times)
-    plt.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple')
-    plt.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange')
+    plt.barh(y=.125, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.25, color="gray", edgecolor='black', label='Off task')
+    plt.barh(y=1.75, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.5, color="purple", edgecolor='black', label='Drinking full')
+    plt.barh(y=1.75, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.5, color="orange", edgecolor='black', label='Drinking empty')
+    y_empty_drinking = [1.75]*len(empty_drinking_times)
+    y_full_drinking = [1.75]*len(full_drinking_times)
+    plt.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple', label = "Full licks")
+    plt.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange', label = "Empty licks")
     plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="green", edgecolor='black', label='Action sequence')
     plt.barh(y=.375, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.25, color="darkred", edgecolor='black', label="moving to lever")
     plt.barh(y=.375, width = end_moving_to_z1 - start_moving_to_z1, left= start_moving_to_z1, height=0.25, color="tomato", edgecolor='black', label="moving to z1")
-    plt.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to lever")
+    plt.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to trough")
     plt.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z2")
-    plt.xlabel("Time (ms)")
-    fig.legend(loc='center right')
-    plt.title(title, loc='left', fontweight='bold')
-    plt.tight_layout(rect=[0, 0, 0.85, 1])
-    plt.show()
+    # ymin = -0.1
+    # ymax = 0.4
+    # plt.vlines(np.array(seq_start_times), ymin, ymax, colors='green', linestyles="dashed", label="Press event")
+    # plt.vlines(np.array(seq_end_times), ymin, ymax, colors='green', linestyles="dashed")
+    # plt.vlines(np.array(enter_zone1_times), ymin, ymax, colors='blue', linestyles="dashed", label="Zone 1 event")
+    # plt.vlines(np.array(enter_zone2_times), ymin, ymax, colors='red', linestyles="dashed", label="Zone 2 event")
+    # plt.vlines(np.concatenate((start_drinking_times, end_drinking_times, start_empty_drinking_df, end_empty_drinking_df)), ymin, ymax, colors="black", linestyles="dashed", label="Drinking event")
 
-def plot_behavior_levels(file_list):
+    y_ticks = [0.125, 0.375, 0.75, 1.25, 1.75]
+    y_labels = ["Task", "Moving", "Sequence", "Press", "Drinking"]
+    plt.yticks(y_ticks, y_labels)
+    plt.xlabel("Time (ms)")
+    plt.legend(loc='upper right')
+    # plt.title(title, loc='left', fontweight='bold')
+    # plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.tight_layout()
+    # plt.show()
+
+def plot_single_experiment_fused(file_path):
+    data = load_data_from_behavior_csv(file_path)
+    title = re.search("Exp ...", os.path.basename(file_path)).group()
+    fig = plt.figure(figsize=(12, 4))
+
+    start_pressing_times = data['Pressing Start'].dropna()
+    end_pressing_times = data['Pressing End'].dropna()
+    full_drinking_times = data['Licking full'].dropna()
+    empty_drinking_times = data['Licking Empty'].dropna()
+    start_in_lever_task = data['In Lever Task Start'].dropna()
+    end_in_lever_task = data['In Lever Task End'].dropna()
+    start_in_trough_task = data['In Trough Task Start'].dropna()
+    end_in_trough_task = data['In Trough Task End'].dropna()
+    start_off_task = data['Off Task Start'].dropna()
+    end_off_task = data['Off Task End'].dropna()
+    start_drinking_times = data['Drinking Full Start']
+    end_drinking_times = data['Drinking Full End']
+    start_empty_drinking_df = data['Drinking Empty Start'].dropna()
+    end_empty_drinking_df = data['Drinking Empty End'].dropna()
+    seq_start_times = data['Sequence Start'].dropna()
+    seq_end_times = data['Sequence End'].dropna()
+    start_moving_to_lever = data["Moving To Lever Start"].dropna()
+    end_moving_to_lever = data["Moving To Lever End"].dropna()
+    start_moving_to_trough = data["Moving To Trough Start"].dropna()
+    end_moving_to_trough = data["Moving To Trough End"].dropna()
+    enter_zone1_times = data["Enter Zone 1"].dropna()
+    enter_zone2_times = data["Enter Zone 2"].dropna()
+
+    plt.barh(y=1.25, width=np.array(end_pressing_times) - np.array(start_pressing_times), left=start_pressing_times, height=0.5, color="black", edgecolor='black', label='Press')
+    plt.barh(y=.125, width=np.array(end_in_lever_task) - np.array(start_in_lever_task), left=start_in_lever_task, height=0.25, color="red", edgecolor='black', label='In lever task')
+    plt.barh(y=.125, width=np.array(end_in_trough_task) - np.array(start_in_trough_task), left=start_in_trough_task, height=0.25, color="blue", edgecolor='black', label='In trough task')
+    plt.barh(y=.125, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.25, color="gray", edgecolor='black', label='Off task')
+    plt.barh(y=1.75, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.5, color="purple", edgecolor='black', label='Drinking full')
+    plt.barh(y=1.75, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.5, color="orange", edgecolor='black', label='Drinking empty')
+    y_empty_drinking = [1.75]*len(empty_drinking_times)
+    y_full_drinking = [1.75]*len(full_drinking_times)
+    plt.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple', label = "Full licks")
+    plt.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange', label = "Empty licks")
+    plt.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="green", edgecolor='black', label='Action sequence')
+    plt.barh(y=.375, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.25, color="darkred", edgecolor='black', label="moving to lever")
+    plt.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to trough")
+    ymin = -0.1
+    ymax = 2
+    # plt.vlines(np.array(seq_start_times), ymin, ymax, colors='green', linestyles="dashed", label="Press event")
+    # plt.vlines(np.array(seq_end_times), ymin, ymax, colors='green', linestyles="dashed")
+    # plt.vlines(np.array(enter_zone1_times), ymin, ymax, colors='navy', linestyles="dashed", label="Zone 1 event")
+    # plt.vlines(np.array(enter_zone2_times), ymin, ymax, colors='darkred', linestyles="dashed", label="Zone 2 event")
+    # plt.vlines(np.concatenate((start_drinking_times, end_drinking_times, start_empty_drinking_df, end_empty_drinking_df)), ymin, ymax, colors="black", linestyles="dashed", label="Drinking event")
+
+    y_ticks = [0.125, 0.375, 0.75, 1.25, 1.75]
+    y_labels = ["Task", "Moving", "Sequence", "Press", "Drinking"]
+    plt.yticks(y_ticks, y_labels)
+    plt.xlabel("Time (ms)")
+    plt.legend(loc='upper right')
+    # plt.title(title, loc='left', fontweight='bold')
+    # plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.tight_layout()
+
+def plot_behavior_levels(file_list, titles = None):
     n = len(file_list)
     if n == 0:
         print("please give a file path or a list of file paths")
@@ -545,10 +649,10 @@ def plot_behavior_levels(file_list):
         plot_single_experiment(file_list[0])
     else :
         fig, axes = plt.subplots(n, figsize=(12, 2*n))
-        for ax, file_path in zip(axes, file_list):
+        for ax, file_path, title in zip(axes, file_list, titles):
             data = load_data_from_behavior_csv(file_path)
             print("Plotting file : ", file_path)
-
+            
             start_pressing_times = data['Pressing Start'].dropna()
             end_pressing_times = data['Pressing End'].dropna()
             full_drinking_times = data['Licking full'].dropna()
@@ -575,248 +679,365 @@ def plot_behavior_levels(file_list):
             end_moving_to_z2 = data["Moving To Zone 2 End"].dropna()
 
             ax.barh(y=1.25, width=np.array(end_pressing_times) - np.array(start_pressing_times), left=start_pressing_times, height=0.5, color="black", edgecolor='black', label='Press')
-            ax.barh(y=.125, width=np.array(end_in_lever_task) - np.array(start_in_lever_task), left=start_in_lever_task, height=0.25, color="red", edgecolor='black', label='In lever task')
-            ax.barh(y=.125, width=np.array(end_in_trough_task) - np.array(start_in_trough_task), left=start_in_trough_task, height=0.25, color="blue", edgecolor='black', label='In trough task')
-            ax.barh(y=0.125, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.25, color="gray", edgecolor='black', label='Off task')
-            ax.barh(y=1.875, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.25, color="purple", edgecolor='black', label='Drinking full')
-            ax.barh(y=1.875, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.25, color="orange", edgecolor='black', label='Drinking empty')
-            y_empty_drinking = [1.875]*len(empty_drinking_times)
-            y_full_drinking = [1.875]*len(full_drinking_times)
-            ax.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple')
-            ax.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange')
+            ax.barh(y=-0.25, width=np.array(end_in_lever_task) - np.array(start_in_lever_task), left=start_in_lever_task, height=0.5, color="red", edgecolor='black', label='In lever task')
+            ax.barh(y=-0.25, width=np.array(end_in_trough_task) - np.array(start_in_trough_task), left=start_in_trough_task, height=0.5, color="blue", edgecolor='black', label='In trough task')
+            ax.barh(y=-0.25, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.25, color="gray", edgecolor='black', label='Off task')
+            ax.barh(y=1.75, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.5, color="purple", edgecolor='black', label='Drinking full')
+            ax.barh(y=1.75, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.5, color="orange", edgecolor='black', label='Drinking empty')
+            y_empty_drinking = [1.75]*len(empty_drinking_times)
+            y_full_drinking = [1.75]*len(full_drinking_times)
+            ax.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple', label = "Full licks")
+            ax.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange', label = "Empty licks")
             ax.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="green", edgecolor='black', label='Action sequence')
-            ax.barh(y=.375, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.25, color="darkred", edgecolor='black', label="moving to lever")
-            ax.barh(y=.375, width = end_moving_to_z1 - start_moving_to_z1, left= start_moving_to_z1, height=0.25, color="tomato", edgecolor='black', label="moving to z1")
-            ax.barh(y=.375, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.25, color="navy", edgecolor='black', label="moving to lever")
-            ax.barh(y=.375, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.25, color="mediumslateblue", edgecolor='black', label="moving to z2")
+            ax.barh(y=.25, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.5, color="darkred", edgecolor='black', label="moving to lever")
+            ax.barh(y=.25, width = end_moving_to_z1 - start_moving_to_z1, left= start_moving_to_z1, height=0.5, color="tomato", edgecolor='black', label="moving to z1")
+            ax.barh(y=.25, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.5, color="navy", edgecolor='black', label="moving to trough")
+            ax.barh(y=.25, width = end_moving_to_z2 - start_moving_to_z2, left= start_moving_to_z2, height=0.5, color="mediumslateblue", edgecolor='black', label="moving to z2")
 
-            ax.set_xlabel("Time (ms)")
-            ax.set_title(re.search("Exp ...", os.path.basename(file_path)).group(), loc='left', fontweight= 'bold')
+            if ax == axes[-1]:
+                ax.set_xlabel("Time (ms)")
+            y_ticks = [-0.25, 0.25, 0.75, 1.25, 1.75]
+            y_labels = ["Task", "Moving", "Sequence", "Press", "Drinking"]
+            ax.set_yticks(y_ticks, y_labels)
+            ax.set_title(title, loc='left', fontweight= 'bold')
 
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='center right')
-        title = "Behavior levels"
-        fig.suptitle(title, fontweight='bold') 
         plt.tight_layout(rect=[0, 0, 0.85, 1])
         plt.show()
     return
 
+def plot_behavior_levels_fused(file_list, titles = None):
+    n = len(file_list)
+    if n == 0:
+        print("please give a file path or a list of file paths")
+    elif n == 1 : 
+        plot_single_experiment_fused(file_list[0])
+    else :
+        fig, axes = plt.subplots(n, figsize=(12, 2*n))
+        for ax, file_path, title in zip(axes, file_list, titles):
+            data = load_data_from_behavior_csv(file_path)
+            print("Plotting file : ", file_path)
+            
+            start_pressing_times = data['Pressing Start'].dropna()
+            end_pressing_times = data['Pressing End'].dropna()
+            full_drinking_times = data['Licking full'].dropna()
+            empty_drinking_times = data['Licking Empty'].dropna()
+            start_in_lever_task = data['In Lever Task Start'].dropna()
+            end_in_lever_task = data['In Lever Task End'].dropna()
+            start_in_trough_task = data['In Trough Task Start'].dropna()
+            end_in_trough_task = data['In Trough Task End'].dropna()
+            start_off_task = data['Off Task Start'].dropna()
+            end_off_task = data['Off Task End'].dropna()
+            start_drinking_times = data['Drinking Full Start']
+            end_drinking_times = data['Drinking Full End']
+            start_empty_drinking_df = data['Drinking Empty Start'].dropna()
+            end_empty_drinking_df = data['Drinking Empty End'].dropna()
+            seq_start_times = data['Sequence Start'].dropna()
+            seq_end_times = data['Sequence End'].dropna()
+            start_moving_to_lever = data["Moving To Lever Start"].dropna()
+            end_moving_to_lever = data["Moving To Lever End"].dropna()
+            start_moving_to_trough = data["Moving To Trough Start"].dropna()
+            end_moving_to_trough = data["Moving To Trough End"].dropna()
+            enter_zone1_times = data["Enter Zone 1"].dropna()
+            enter_zone2_times = data["Enter Zone 2"].dropna()
 
-## Metrics computation on behavior description
+            ax.barh(y=1.25, width=np.array(end_pressing_times) - np.array(start_pressing_times), left=start_pressing_times, height=0.5, color="black", edgecolor='black', label='Press')
+            ax.barh(y=-0.25, width=np.array(end_in_lever_task) - np.array(start_in_lever_task), left=start_in_lever_task, height=0.5, color="red", edgecolor='black', label='In lever task')
+            ax.barh(y=-0.25, width=np.array(end_in_trough_task) - np.array(start_in_trough_task), left=start_in_trough_task, height=0.5, color="blue", edgecolor='black', label='In trough task')
+            ax.barh(y=-0.25, width=np.array(end_off_task) - np.array(start_off_task), left=start_off_task, height=0.5, color="gray", edgecolor='black', label='Off task')
+            ax.barh(y=1.75, width=np.array(end_drinking_times) - np.array(start_drinking_times), left=np.array(start_drinking_times), height=0.5, color="purple", edgecolor='black', label='Drinking full')
+            ax.barh(y=1.75, width=np.array(end_empty_drinking_df) - np.array(start_empty_drinking_df), left=np.array(start_empty_drinking_df), height=0.5, color="orange", edgecolor='black', label='Drinking empty')
+            y_empty_drinking = [1.75]*len(empty_drinking_times)
+            y_full_drinking = [1.75]*len(full_drinking_times)
+            ax.scatter(full_drinking_times,y_full_drinking, edgecolor='black',color='purple', label = "Full licks")
+            ax.scatter(empty_drinking_times,y_empty_drinking, edgecolor='black',color='orange', label = "Empty licks")
+            ax.barh(y=0.75, width=np.array(seq_end_times) - np.array(seq_start_times), left=seq_start_times, height=0.5, color="green", edgecolor='black', label='Action sequence')
+            ax.barh(y=.25, width = end_moving_to_lever - start_moving_to_lever, left= start_moving_to_lever, height=0.5, color="darkred", edgecolor='black', label="moving to lever")
+            ax.barh(y=.25, width = end_moving_to_trough - start_moving_to_trough, left= start_moving_to_trough, height=0.5, color="navy", edgecolor='black', label="moving to trough")
+
+            # if ax == axes[-1]:
+            #     ax.set_xlabel("Time (ms)")
+            y_ticks = [-0.25, 0.25, 0.75, 1.25, 1.75]
+            y_labels = ["Task", "Moving", "Sequence", "Press", "Drinking"]
+            ax.set_yticks(y_ticks, y_labels)
+            ax.set_title(title, loc='left', fontweight= 'bold')
+
+        handles, labels = ax.get_legend_handles_labels()
+        fig.legend(handles, labels, loc='center right')
+
+        plt.tight_layout(rect=[0, 0, 0.85, 1])
+        plt.show()
+    return
+
 
 def load_data_from_behavior_csv(file_path):
     # Loads the data from behavior description csv. This csv is saved using the above save_behavior_description(args) function
     data = pd.read_csv(file_path)
     return data
 
-def compute_metrics(file_list):
-    column_names = ['Pressing Start', 'Pressing End', 'Enter Zone 1', 'Enter Zone 2', 'Licking full', 'Licking Empty', 'Drinking Full Start', 'Drinking Full End', 'Drinking Empty Start', 'Drinking Empty End', 'In Lever Task Start', 'In Lever Task End', 'In Trough Task Start', 'In Trough Task End', 'Off Task Start', 'Off Task End', 'Sequence Start', 'Sequence End']
-    experiment_list = []
-    list_press_counts= []
-    experiments_stats = {}
-    for file_path in file_list:
-        print("\nFile: ", os.path.basename(file_path))
-        exp_name = re.search("Exp ...", os.path.basename(file_path)).group()
-        experiment_list.append(exp_name)
-        experiments_stats[exp_name] = {}
-        data = load_data_from_behavior_csv(file_path)
-        presses_statistics = get_press_seq_statistics(data["Pressing Start"].dropna(), data["Sequence Start"].dropna(), data["Sequence End"].dropna())
-        drinking_statistics = get_drinking_statistics(data['Drinking Full Start'].dropna(), data['Drinking Full End'].dropna(), data['Licking full'], data['Drinking Empty Start'].dropna(), data['Drinking Empty End'].dropna(), data['Licking Empty'])
-        task_statistics = get_task_statistics(data['In Lever Task Start'].dropna(), data['In Lever Task End'].dropna(), data['In Trough Task Start'].dropna(), data['In Trough Task End'].dropna(), data['Off Task Start'].dropna(), data['Off Task End'].dropna())
-        experiments_stats[exp_name]["full session"] = [presses_statistics, drinking_statistics, task_statistics]
-    return experiments_stats
+def fuse_drinking():
+    sessions = ["Exp 014", "Exp 015", "Exp 016", "Exp 017"]
+    mice = ["M2", "M4", "M15"]
+    for mouse in mice:
 
-def get_press_seq_statistics(presses_start, seq_start, seq_end):
-    list_n_presses = []
-    if not seq_start.empty:
-        seq_end = seq_end[seq_end>= seq_start.iloc[0]]
-    else:
-        print("No action sequence in this time interval")
-        list_n_presses.append(0)
-    for start, end in zip(seq_start, seq_end):
-        presses = presses_start[(presses_start >= start) & (presses_start <= end)]
-        n_presses = len(presses)
-        list_n_presses.append(n_presses)
-    # list_n_presses.sort()
-    statistics_dict = {
-        'median' : np.median(list_n_presses),
-        'mean' : np.mean(list_n_presses),
-        'total_presses' : np.sum(list_n_presses),
-        'total_seq' : len(list_n_presses),
-        'max_presses' : np.max(list_n_presses),
-        'min_presses' : np.min(list_n_presses),
-        'std' : np.std(list_n_presses),
-        'list_n_presses' : list_n_presses
-    }
-    return statistics_dict
+        folder_path = f"behavioral_data\\behavior descriptions\\final_description\\{mouse}"
+        save_folder = f"behavioral_data\\behavior descriptions\\fused_drinking\\{mouse}"
+        file_list = [os.path.join(folder_path, f) for f in os.listdir(folder_path)]
+        sessions_file_list = []
 
-def get_drinking_statistics(drinking_full_start, drinking_full_end, licking_full, drinking_empty_start, drinking_empty_end, licking_empty):
-    if not drinking_full_start.any():
-        print("No drinking full behavior in this time interval")
-        return
-    
-    n_full_visits = len(drinking_full_start)
-    n_empty_visits = len(drinking_empty_start)
-    diff_full = drinking_full_end - drinking_full_start
-    diff_empty = drinking_empty_end - drinking_empty_start
-    total_time_full_drinking = np.sum(diff_full)/1000
-    total_time_empty_drinking = np.sum(diff_empty)/1000
-    total_time_drinking = total_time_full_drinking + total_time_empty_drinking
+        for file_path in file_list:
+            if any(exp in file_path for exp in sessions):
+                sessions_file_list.append(file_path)
 
-    list_n_licking_full = []
-    for start, end in zip(drinking_full_start, drinking_full_end):
-        licks = licking_full[(licking_full >= start) & (licking_full <= end)]
-        n_licks = len(licks)
-        list_n_licking_full.append(n_licks)
-    
-    list_n_licking_empty = []
-    for start, end in zip(drinking_empty_start, drinking_empty_end):
-        licks = licking_empty[(licking_empty >= start) & (licking_empty <= end)]
-        n_licks = len(licks)
-        list_n_licking_empty.append(n_licks)
+        for file in sessions_file_list:
+            print("Fusing file: ", file)
+            if not os.path.exists(file):
+                continue
+            file_name = os.path.basename(file)
+            df = load_data_from_behavior_csv(file)
+            new_df = df.copy()
 
+            drinking_start = pd.concat([
+                df['Drinking Full Start'].dropna(),
+                df['Drinking Empty Start'].dropna()
+            ]).sort_values()
 
-    statistics_dict = {
-        'n_full_visits' : n_full_visits,
-        'n_empty_visits' : n_empty_visits,
-        'total_time_full_drinking' : total_time_full_drinking/total_time_drinking,
-        'total_time_empty_drinking' : total_time_empty_drinking/total_time_drinking,
-        'mean_full_drinking' : np.mean(diff_full)/1000,
-        'mean_empty_drinking' : np.mean(diff_empty)/1000,
-        'list_n_lickings_full' : list_n_licking_full,
-        'max_full_licking' : np.max(list_n_licking_full),
-        'min_full_licking' : np.min(list_n_licking_full),
-        'mean_full_licking' : np.mean(list_n_licking_full),
-        'median_full_licking' : np.median(list_n_licking_full),  
-        'list_n_lickings_empty' : list_n_licking_empty,
-        'max_empty_licking' : np.max(list_n_licking_empty),
-        'min_empty_licking' : np.min(list_n_licking_empty),
-        'mean_empty_licking' : np.mean(list_n_licking_empty),
-        'median_empty_licking' : np.median(list_n_licking_empty),  
-    }
-    return statistics_dict
+            drinking_end = pd.concat([
+                df['Drinking Full End'].dropna(),
+                df['Drinking Empty End'].dropna()
+            ]).sort_values()
 
-def get_task_statistics(lever_start, lever_end, trough_start, trough_end, off_start, off_end):
-    diff_lever = lever_end - lever_start
-    diff_trough = trough_end - trough_start
-    diff_off = off_end - off_start
+            new_df['Drinking Start'] = drinking_start.reset_index(drop=True)
+            new_df['Drinking End'] = drinking_end.reset_index(drop=True)
 
-    statistics_dict = {
-        'total_time_lever_task' : np.sum(diff_lever)/1000,
-        'total_time_trough_task' : np.sum(diff_trough)/1000,
-        'total_time_off_task' : np.sum(diff_off)/1000
-    }
-    return statistics_dict
+            columns_to_drop = [
+                'Drinking Full Start', 'Drinking Full End',
+                'Drinking Empty Start', 'Drinking Empty End'
+            ]
+            new_df = new_df.drop(columns=columns_to_drop)
+            new_df.to_csv(os.path.join(save_folder, file_name), index=False)
 
-def get_total_time(start, end):
-    diff = end - start
-    total_time = np.sum(diff)/1000
-    return total_time
+def fuse_movements() :
+    mice = ["M2", "M4", "M15"]
 
-def plot_statistics(statistics, stat_types, partial = False, n = 0):
-    experiment_list = statistics.keys()
-    for type in stat_types:
-        if type == "Press":
-            list_press_counts = []
-            for exp in experiment_list:
-                list_press_counts.append(statistics[exp]["full session"][0]["list_n_presses"])
-            plt.figure()
-            bp = plt.boxplot(list_press_counts, tick_labels=experiment_list, showmeans=True)
-            plt.title("Presses per Action Sequence box plots", fontweight = "bold")
-            plt.ylabel("Number of presses")
-            plt.legend([bp['medians'][0], bp['means'][0]], ['median', 'mean'])
-            plt.show()
+    for mouse in mice:
 
-            if partial :
-                list_press_counts_partial = []
-                for exp in experiment_list:
-                    list_press_counts_exp = []
-                    for i in range(1, n+1):
-                        list_press_counts_exp.append(statistics[exp]["partial sessions"][f"Part_{i}"][0]["list_n_presses"])
-                    list_press_counts_partial.append(list_press_counts_exp)
-                x = np.arange(len(experiment_list))*4
-                width = 0.6
-                plt.figure()
-                i = 0
-                for exp in list_press_counts_partial:
-                    positions = [x[i]-1.2, x[i]-0.4, x[i] + 0.4, x[i] + 1.2]
-                    bp = plt.boxplot(exp, positions=positions, widths=width)
-                    i+=1
-                plt.xticks(x, experiment_list, rotation=45, ha="right")
-                plt.show()
+        folder_path = f"behavioral_data\\behavior descriptions\\full session\\{mouse}"
+        save_folder = f"behavioral_data\\behavior descriptions\\fused_moving\\{mouse}"
+        file_list = [os.path.join(folder_path, f) for f in os.listdir(folder_path)]
 
+        for file in file_list:
+            print("Fusing file: ", file)
+            if not os.path.exists(file):
+                continue
+            file_name = os.path.basename(file)
+            df = load_data_from_behavior_csv(file)
+            new_df = df.copy()
 
-        elif type == "Drinking":
-            full_drinking_times = []
-            list_n_full_visits = []
-            empty_drinking_times = []
-            list_n_empty_visits = []
-            for exp in experiment_list:
-                full_drinking_times.append(statistics[exp]["full session"][1]["total_time_full_drinking"])
-                empty_drinking_times.append(statistics[exp]["full session"][1]["total_time_empty_drinking"])
-                list_n_full_visits.append(statistics[exp]["full session"][1]["n_full_visits"])
-                list_n_empty_visits.append(statistics[exp]["full session"][1]["n_empty_visits"])
+            columns_to_drop = [
+                'Moving To Lever Start', 'Moving To Lever End',
+                'Moving To Trough Start', 'Moving To Trough End',
+                'Moving To Zone 1 Start', 'Moving To Zone 1 End',
+                'Moving To Zone 2 Start', 'Moving To Zone 2 End'
+            ]
 
-            x = np.arange(len(experiment_list))
-            width = 0.25
-            # add plot of n visits
-            fig, ax1 = plt.subplots(figsize=(10, 5))  # Create the figure and primary axis
+            new_df = new_df.drop(columns=columns_to_drop)
 
-            # Primary axis (Drinking times)
-            ax1.bar(x - width/2, full_drinking_times, width, label="Drinking Full", color='purple')
-            ax1.bar(x + width/2, empty_drinking_times, width, label="Drinking Empty", color='orange')
-            ax1.set_ylabel("Total Drinking Time (%)", color='black')
-            ax1.tick_params(axis='y', labelcolor='black')
-
-            # Secondary axis (Number of visits)
-            ax2 = ax1.twinx()  # Create a second y-axis
-            ax2.plot(x, list_n_full_visits, "-o", label="Number of Full Visits", color='blue')
-            ax2.plot(x, list_n_empty_visits, "-x", label="Number of Empty Visits", color='red')
-            ax2.set_ylabel("Number of Visits", color='black')
-            ax2.tick_params(axis='y', labelcolor='black')
-            plt.xticks(x, experiment_list, rotation=45, ha="right")
-            ax1.set_title("Drinking Times and Number of Visits for Each Experiment")
-            ax1.legend(loc="upper left")
-            ax2.legend(loc="upper right")
-
-            plt.tight_layout()
-            plt.show()
-
-        elif type == "Task":
-            lever_task_times = []
-            trough_task_times = []
-            off_task_times = []
-            for exp in experiment_list:
-                lever_task_times.append(statistics[exp]["full session"][2]["total_time_lever_task"])
-                trough_task_times.append(statistics[exp]["full session"][2]["total_time_trough_task"])
-                off_task_times.append(statistics[exp]["full session"][2]["total_time_off_task"])
+            moving_to_lever_start = pd.concat([
+                df['Moving To Lever Start'].dropna(),
+                df['Moving To Zone 2 Start'].dropna()
+            ]).sort_values()
             
-            x = np.arange(len(experiment_list))
-            width = 0.25
+            moving_to_lever_end = pd.concat([
+                df['Moving To Lever End'].dropna(),
+                df['Moving To Zone 2 End'].dropna()
+            ]).sort_values()
 
-            plt.figure()
-            plt.bar(x - width, lever_task_times, width, label= "In lever task")
-            plt.bar(x, trough_task_times, width, label="In trough task")
-            plt.bar(x + width, off_task_times, width, label="Off task")
-            plt.ylabel("Time (s)")
-            plt.title("Task times for each experiments")
-            plt.xticks(x, experiment_list, rotation=45, ha="right")
-            plt.legend()
-            plt.show()
+            moving_to_trough_start = pd.concat([
+                df['Moving To Trough Start'].dropna(),
+                df['Moving To Zone 1 Start'].dropna()
+            ]).sort_values()
+            
+            moving_to_trough_end = pd.concat([
+                df['Moving To Trough End'].dropna(),
+                df['Moving To Zone 1 End'].dropna()
+            ]).sort_values()
 
-    return 0
+            moving_to_lever_start, moving_to_lever_end = merge_movement_intervals(moving_to_lever_start, moving_to_lever_end)
+            moving_to_trough_start, moving_to_trough_end = merge_movement_intervals(moving_to_trough_start, moving_to_trough_end)
+
+
+            new_df['Moving To Lever Start'] = moving_to_lever_start.reset_index(drop=True)
+            new_df['Moving To Lever End'] = moving_to_lever_end.reset_index(drop=True)
+            new_df['Moving To Trough Start'] = moving_to_trough_start.reset_index(drop=True)
+            new_df['Moving To Trough End'] = moving_to_trough_end.reset_index(drop=True)
+
+            new_df.to_csv(os.path.join(save_folder, file_name), index=False)
+
+def compute_task_intervals():
+    mice = ["M2", "M4", "M15"]
+
+    for mouse in mice:
+
+        folder_path = f"behavioral_data\\behavior descriptions\\fused_moving\\{mouse}"
+        save_folder = f"behavioral_data\\behavior descriptions\\final_description\\{mouse}"
+        file_list = [os.path.join(folder_path, f) for f in os.listdir(folder_path)]
+
+        for file in file_list:
+            print("Computing file: ", file)
+            if not os.path.exists(file):
+                continue
+            file_name = os.path.basename(file)
+            df = load_data_from_behavior_csv(file)
+            new_df = df.copy()
+
+            columns_to_drop = [
+                'In Lever Task Start', 'In Lever Task End',
+                'In Trough Task Start', 'In Trough Task End',
+            ]
+
+            new_df = new_df.drop(columns=columns_to_drop)
+
+            in_lever_task_start = pd.concat([
+                df['Moving To Lever Start'].dropna(),
+                df['Sequence Start'].dropna()
+            ]).sort_values()
+            
+            in_lever_task_end = pd.concat([
+                df['Moving To Lever End'].dropna(),
+                df['Sequence End'].dropna()
+            ]).sort_values()
+
+            in_trough_task_start = pd.concat([
+                df['Moving To Trough Start'].dropna(),
+                df['Drinking Full Start'].dropna(),
+                df['Drinking Empty Start'].dropna()
+            ]).sort_values()
+            
+            in_trough_task_end = pd.concat([
+                df['Moving To Trough End'].dropna(),
+                df['Drinking Full End'].dropna(),
+                df['Drinking Empty End'].dropna()
+            ]).sort_values()
+
+            enter_zone1_times = df["Enter Zone 1"].dropna()
+            drinking_times = pd.concat([df["Licking full"].dropna(), df['Licking Empty'].dropna()])
+            in_trough_task_start_buffer = []
+            in_trough_task_end_buffer = []
+
+            in_lever_task_start, in_lever_task_end = merge_movement_intervals(in_lever_task_start, in_lever_task_end)
+            for z1 in enter_zone1_times:
+                if z1 is not None:
+                    next_zone2_times = in_lever_task_start[0][in_lever_task_start[0] > z1]
+                    next_zone1_times = enter_zone1_times[enter_zone1_times > z1]
+                    if not next_zone2_times.empty:
+                        next_zone2_t = next_zone2_times.iloc[0]
+                    else : 
+                        next_zone2_t = 1200000
+
+                    if not next_zone1_times.empty:
+                        next_zone1_t = next_zone1_times.iloc[0]
+                    else :
+                        next_zone1_t = 1200000
+                    end_t = min(next_zone1_t, next_zone2_t)
+                    subset_drinking = drinking_times[(drinking_times >= z1) & (drinking_times <= end_t)]
+
+                    if subset_drinking.any():
+                        in_trough_task_start_buffer.append(z1)
+                        in_trough_task_end_buffer.append(end_t)
+            
+            in_trough_task_start = pd.concat([in_trough_task_start, pd.DataFrame(in_trough_task_start_buffer)])[0]
+            in_trough_task_end = pd.concat([in_trough_task_end, pd.DataFrame(in_trough_task_end_buffer)])[0]
+            in_trough_task_start, in_trough_task_end = merge_movement_intervals(in_trough_task_start, in_trough_task_end)
+
+            new_df['In Lever Task Start'] = in_lever_task_start.reset_index(drop=True)
+            new_df['In Lever Task End'] = in_lever_task_end.reset_index(drop=True)
+            new_df['In Trough Task Start'] = in_trough_task_start.reset_index(drop=True)
+            new_df['In Trough Task End'] = in_trough_task_end.reset_index(drop=True)
+
+            new_df.to_csv(os.path.join(save_folder, file_name), index=False)
+
+def merge_movement_intervals(starts, ends):
+    intervals = sorted(zip(starts, ends))
+    start_buffer = []
+    end_buffer = []
+    if not intervals:
+        return starts, ends
+    
+    current_start, current_end = intervals[0]
+    for start, end in intervals[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+        else:
+            start_buffer.append(current_start)
+            end_buffer.append(current_end)
+            current_start, current_end = start, end
+    start_buffer.append(current_start)
+    end_buffer.append(current_end)
+
+    return pd.DataFrame(start_buffer), pd.DataFrame(end_buffer)
+
+def time_duration_session():
+    mice = ["M2", "M4", "M15"]
+    exp_list = ["1st FR1", "2nd FR1", "3rd FR1", "4th FR1", "5th FR1", "6th FR1"]
+    total_session_distributions = [np.zeros(6) for mouse in mice]
+    for i, mouse in enumerate(mice):
+        path_file = f"behavioral_data\paths\paths_dat\{mouse}_dat_exp10_to_17.csv"
+        paths = pd.read_csv(path_file)["File"].values
+        file_list = np.concat([paths[:5], [paths[6]]])
+        for j, file in enumerate(file_list):
+            print(file)
+            data = load_data_from_dat(file)
+            drinking_data = data[data.iloc[:,1] == 5]
+            total_distributions = np.max(drinking_data.iloc[:,7])
+            total_session_distributions[i][j] = total_distributions
+
+    x = np.arange(len(exp_list))
+    plt.figure(figsize=(10, 6))
+
+    # Use better colors and add markers
+    for i, mouse_data in enumerate(total_session_distributions):
+        plt.plot(x, mouse_data, label=mice[i], marker='o', linewidth=2)
+
+    plt.xticks(x, exp_list, rotation=45)  # Rotate labels if needed
+    plt.xlabel("Session number", fontsize=12)
+    plt.ylabel("Number of liquid distributions", fontsize=12)
+    plt.grid(alpha=0.3, linestyle='--')  # Subtle grid
+    plt.legend(frameon=True)
+    plt.tight_layout()
+    plt.show()
+
+            
 
 def main():
-    ##COMPUTE BEHAVIOR LEVELS DURING EXPERIMENTS
-    # file_list = pd.read_csv(r".\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv")["File"]
+    time_duration_session()
+    # fuse_drinking()
+    # fuse_movements()
+    # compute_task_intervals()
+    #COMPUTE BEHAVIOR LEVELS DURING EXPERIMENTS
+    # file_list = pd.read_csv(r".\behavioral_data\paths\paths_dat\M15_dat_exp10_to_17.csv")["File"][5:6]
     # compute_behavior_description(file_list, r".\behavioral_data\behavior descriptions\full session")
-    ##COMPUTE METRICS ON SAVED BEHAVIOR DESCRIPTIONS
+    # #COMPUTE METRICS ON SAVED BEHAVIOR DESCRIPTIONS
     # file_list = [r'.\behavioral_data\behavior descriptions\full session\M2\\' + f for f in os.listdir(r'.\behavioral_data\behavior descriptions\full session\M2\\')]
     # compute_partial_behavior_description([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"], r'C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\partial sessions', 4)
-    # statistics = compute_metrics(file_list)
-    # plot_statistics(statistics, ["Press", "Drinking", "Task"], partial=False, n=4)
-    
-    plot_behavior_levels([r"behavioral_data\behavior descriptions\full session\M2\M2 - Jun24_Exp 010_behavior_description.csv"])
+    # compute_behavior_description([r"P:\Ca2+ Data\M2 - Jun24\Exp 013\M2_240620_FR1_4good_01.dat"], r"behavioral_data\behavior descriptions")
+    # plot_single_experiment_fused(r"behavioral_data\behavior descriptions\final_description\M2\M2 - Jun24_Exp 013_behavior_description.csv")
+    # plt.show()
+
+    # FR1 = ["Exp 010", "Exp 012", "Exp 014", "Exp 016"]
+    # mice = ["M2", "M4", "M15"]
+    # titles = ['First FR1 session', 'Third FR1 session', 'Fifth FR1 session', 'Sixth FR1 session']
+    # folder_path = r"behavioral_data\behavior descriptions\final_description\M15"
+    # file_list = [os.path.join(folder_path, f) for f in os.listdir(folder_path)]
+    # FR1_file_list = []
+
+    # for file_path in file_list:
+    #     if any(exp in file_path for exp in FR1):
+    #         FR1_file_list.append(file_path)
+
+    # plot_behavior_levels_fused(FR1_file_list, titles)
+
     # plot_behavior_levels([r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\full session\M2 - Jun24_Exp 010_behavior_description.csv"])
 if __name__ == "__main__": 
     main()

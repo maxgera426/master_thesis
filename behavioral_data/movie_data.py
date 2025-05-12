@@ -1,3 +1,4 @@
+import cv2
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -6,6 +7,7 @@ from scipy.spatial import ConvexHull
 from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # This script handles the data extracted from the movie of the mouse movements taken during the experiments
@@ -64,12 +66,12 @@ def rotate_data(data, rect):
     p1, p2 = longest_edge[1], longest_edge[2]
 
     # Compute angle of the longest edge with horizontal
-    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    dx, dy = np.abs(p2[0] - p1[0]), np.abs(p2[1] - p1[1])
     rotation_angle = np.arctan2(dy, dx) # if you want angle with vertical swap dy and dx
 
-    if p1[1] > p2[1]:
+    if p1[1] < p2[1]:
         rotation_angle = np.abs(rotation_angle)
-    elif p1[1] < p2[1]:
+    elif p1[1] > p2[1]:
         rotation_angle = -np.abs(rotation_angle)
 
     rotation_matrix = np.array([
@@ -200,19 +202,26 @@ def moving(positions, units, total_t = 1200000):
     smooth_x = savgol_filter(x_interp, 31, 3)
     smooth_y = savgol_filter(y_interp, 31, 3)
 
-    v_t = np.sqrt(np.diff(smooth_x)**2 + np.diff(smooth_y)**2)/(delta_t[0])*1000*units # cm/s
-    # v_stats = {
-    #     'mean': np.mean(v_t),
-    #     'median': np.median(v_t),
-    #     'std': np.std(v_t),
-    #     'min': np.min(v_t),
-    #     'max': np.max(v_t),
-    #     '25th': np.percentile(v_t, 25),
-    #     '75th': np.percentile(v_t, 75)
-    # }
+    plt.figure()
+    # X coordinates - using same color (blue) with different line styles
+    plt.plot(real_time/1000, x_interp * units, "--", color='blue', label="x Position")
+    plt.plot(real_time/1000, smooth_x * units, "-", color='blue', label="Smooth x Position")
 
-    velocity_threshold = 1.5 #v_stats['25th'] + 0.5 * (v_stats['75th'] - v_stats['25th'])
-    is_moving = v_t > velocity_threshold
+    # Y coordinates - using same color (orange) with different line styles
+    plt.plot(real_time/1000, y_interp * units, "--", color='orange', label="y Position")  # Note: this should be y_interp not x_interp again
+    plt.plot(real_time/1000, smooth_y * units, "-", color='orange', label="Smooth y Position")
+
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Position (pixels)')
+    plt.legend(loc="upper right")
+    plt.tight_layout()
+    plt.show()
+
+
+    v_t = np.sqrt(np.diff(smooth_x)**2 + np.diff(smooth_y)**2)/(delta_t[0])*1000*units # cm/s
+
+    velocity_threshold = 1.5
+    is_moving = v_t >= velocity_threshold
     transitions = np.diff(is_moving.astype(int))
     start_moving = np.where(transitions == 1)[0] + 1
     stop_moving = np.where(transitions == -1)[0] + 1
@@ -248,35 +257,40 @@ def moving(positions, units, total_t = 1200000):
                     avg_velocity              # unités/seconde
                 ))
     
-    # # Afficher la vitesse instantanée avec le seuil
-    # plt.figure(figsize=(14, 8))
-    # plt.subplot(211)
-    # plt.plot(real_time[1:]/1000, v_t, label="Vitesse instantanée")
-    # plt.axhline(y=velocity_threshold, color='r', linestyle='--', label=f'Seuil: {velocity_threshold:.4f} cm/s')
-    # plt.xlabel('Temps (secondes)')
-    # plt.ylabel('Vitesse (cm/s)')
+    # Afficher la vitesse instantanée avec le seuil
+    plt.figure(figsize=(14, 8))
+    plt.subplot(211)
+    plt.plot(real_time[1:]/1000, v_t, label="Instantaneous velocity")
+    plt.axhline(y=velocity_threshold, color='r', linestyle='--', label=f'Threshold: {velocity_threshold:.4f} cm/s')
+    plt.xlabel('Time (secondes)')
+    plt.ylabel('Velocity (cm/s)')
     # plt.title('Vitesse instantanée et seuil de détection')
-    # plt.legend()
-    # plt.grid(True)
+    plt.legend()
+    plt.xlim(30, 115)
+    plt.grid(True)
     
     # # Visualiser les positions avec les périodes de mouvement surlignées
-    # plt.subplot(212)
-    # plt.plot(real_time/1000, x_interp * units, label="Position X")
-    # plt.plot(real_time/1000, y_interp * units, label="Position Y")
+    plt.subplot(212)
+    plt.plot(real_time/1000, smooth_x * units, label="x position")
+    plt.plot(real_time/1000, smooth_y * units, label="y position")
     
-    # # Surligner les périodes de mouvement
-    # for segment in movement_segments:
-    #         plt.axvspan(segment[0], segment[1], 
-    #                    alpha=0.2, color='green')
+    # Surligner les périodes de mouvement
+    for i, segment in enumerate(movement_segments):
+            if i == 0:
+                plt.axvspan(segment[0], segment[1], 
+                        alpha=0.2, color='green', label="Movement intervals")
+            else: 
+                plt.axvspan(segment[0], segment[1], 
+                        alpha=0.2, color='green')
     
-    # plt.xlabel('Temps (secondes)')
-    # plt.ylabel('Position (cm)')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Position (cm)')
     # plt.title('Positions avec périodes de mouvement surlignées')
-    # plt.legend()
-    # plt.grid(True)
-    
-    # plt.tight_layout()
-    # plt.show()
+    plt.legend(loc = "upper right")
+    plt.grid(True)
+    plt.xlim(30, 115)
+    plt.tight_layout()
+    plt.show()
     
     return movement_segments
 
@@ -297,26 +311,71 @@ def save_movement_description(list, exp_num):
     save_file = r"behavioral_data\behavior descriptions\movement_description\M15\\" + exp_num + "_movement_segments.csv"
     movement_df.to_csv(save_file, index=False)
 
+def plot_n_points():
+    mice = ["M2", "M4", "M15"]
+    likelihood_threshold = 0.8
+    body_parts = ['neck', 'body1', 'body2', 'body3', 'tail_start', 'tail_end', 'pawR', 'pawL']
+    points = np.zeros((len(body_parts), len(mice)*8))
+    for i, mouse in enumerate(mice):
+        dir = f"P:\\Ca2+ Data\\{mouse} - Jun24\\"
+        file_list = get_file_list(dir)
+        for j, file in enumerate(file_list):
+            print(file)
+            data = load_data(file)
+            for k, part in enumerate(body_parts):
+                col = i*8 + j
+                n_points = len(data[(data[f'{part}_likelihood'] > likelihood_threshold)])
+                points[k, col] = n_points
+    
+    plt.figure()
+    sns.boxplot(data=points.T, palette=["darkviolet", "slateblue", "cornflowerblue", "lightskyblue", "turquoise", "mediumspringgreen"])
+    plt.xticks(range(len(body_parts)), body_parts)
+    plt.ylabel("Number of points")
+    plt.show()
+        
+
+
+
 def main():
+    # plot_n_points()
     # Load the data
     cage_dimensions = (22, 15.5) # cm 
-    dir = r"P:\Ca2+ Data\M15 - Jun24\\"
+    dir = r"P:\Ca2+ Data\M2 - Jun24\\"
     likelihood_threshold = 0.95
     body_part = 'body1'
     body_parts = ['neck', 'body1', 'body2', 'body3', 'tail_start', 'tail_end', 'camera', 'earR', 'earL', 'nose', 'pawR', 'pawL']
     file_list = get_file_list(dir)
+
     for file_path in file_list:
         print("Processing: ", file_path)
+        video_path = file_path.replace(".csv", "_labeled.mp4")
         data = load_data(file_path)
         total_t = np.max(data["Time"])
         total_data = all_points(data, body_parts, likelihood_threshold)
+        filtered_data = data[(data['camera_likelihood'] > likelihood_threshold)]
+        rect_coords = find_rectangle(total_data).T
+
+        ## Show video frame
+        # cap = cv2.VideoCapture(video_path)
+        # cap.set(cv2.CAP_PROP_POS_FRAMES, 1)
+        # ret, frame = cap.read()
+        # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # fig,ax = plt.subplots(figsize = (12,8))
+        # ax.imshow(frame_rgb)
+        # ax.plot(rect_coords[0], rect_coords[1], color="red")
+        # plt.xlabel("x (pixel)")
+        # plt.ylabel("y (pixel)")
+        # plt.show()
 
         # Find the corners of the cage
         rect_coords = find_rectangle(total_data).T
         likelihood_threshold = 0.80 # smaller to include more points
         filtered_data = data[(data[f'{body_part}_likelihood'] > likelihood_threshold)]
+
         # Rotate the data to compensate fisheye effect
         rect_coords, rotated_data = rotate_data(filtered_data, rect_coords)
+
+
         x_diff = max(rect_coords[0]) - min(rect_coords[0])
         y_diff = max(rect_coords[1]) - min(rect_coords[1])
         length = max(x_diff, y_diff)
@@ -324,10 +383,12 @@ def main():
         x_factor = cage_dimensions[0] / length
         y_factor = cage_dimensions[1] / width
         pixel_to_cm = np.mean([x_factor, y_factor])
+        
 
         movement_segments = moving(rotated_data[[f"{body_part}_x", f'{body_part}_y', 'Time']].values, pixel_to_cm, total_t)
-        exp_num = os.path.basename(os.path.dirname(file_path))
-        save_movement_description(movement_segments, exp_num)
+
+        # exp_num = os.path.basename(os.path.dirname(file_path))
+        # save_movement_description(movement_segments, exp_num)
     return 0
 
 
