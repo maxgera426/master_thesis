@@ -420,7 +420,7 @@ def plot_time_full_seq():
 
     min_val = np.min(time_per_seq)
     max_val = np.max(time_per_seq)
-    mean = np.mean(time_per_seq)
+    median = np.median(time_per_seq)
 
     bin_size = 500 
     nbins = (max_val - min_val)//bin_size + 1
@@ -435,7 +435,7 @@ def plot_time_full_seq():
 
     plt.figure()
     plt.bar(x, counts, width=bin_size, align='edge', edgecolor='black', color='green')
-    plt.vlines(mean, 0, np.max(counts), colors='black', linestyles="dashed", label=f"Mean value = {round(mean, 2)} ms")
+    plt.vlines(median, 0, np.max(counts), colors='black', linestyles="dashed", label=f"Median value = {round(median, 2)} ms")
     plt.xlabel('Time duration of complete task cycles (ms)')
     plt.ylabel('Frequency')
     plt.legend()
@@ -448,11 +448,16 @@ def plot_time_behaving_optimally():
     random_omission = ["Exp 015"]
     complete_devaluation = ["Exp 017"]
     mice = ["M2", "M4", "M15"]
-    mean_time = 18016.07
+    median_time = [28603.0, 19142.0, 11555.0]
 
     exp_list = ["1st FR1", "2nd FR1", "3rd FR1", "4th FR1", "5th FR1", "6th FR1"] #[FR1[4]] + random_omission + [FR1[5]] + complete_devaluation
 
+    duration = pd.read_csv(r"behavioral_data\behavior descriptions\session_duration.csv")
+    selected_rows = duration.iloc[[0, 1, 2, 3, 4, 6]]
+    selected_array = selected_rows.to_numpy()
+
     cycles_per_mouse = np.zeros([len(exp_list), len(mice)])
+    perc_in_task = np.zeros([len(exp_list), len(mice)])
 
     folder_path = r"behavioral_data\behavior descriptions\final_description"
     full_cycle = ['Sequence', 'Moving To Trough', 'Drinking Full', 'Moving To Lever']
@@ -467,13 +472,8 @@ def plot_time_behaving_optimally():
             state_df = get_transition_df(file)
             n_cycles = seq_counter(state_df, full_cycle)
             cycles_per_mouse[j, i] = n_cycles
-
-    duration = pd.read_csv(r"behavioral_data\behavior descriptions\session_duration.csv")
-    selected_rows = duration.iloc[[0, 1, 2, 3, 4, 6]]
-    selected_array = selected_rows.to_numpy()
-
-
-    perc_in_task = cycles_per_mouse*mean_time/selected_array*100
+            perc_in_task[j, i] = n_cycles*median_time[i]/selected_array[j,i]*100
+    
     print(cycles_per_mouse)
     print(selected_array)
     mean_percentages = np.mean(perc_in_task, axis=1)
