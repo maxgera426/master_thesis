@@ -13,7 +13,7 @@ def get_transition_matrix(file_path, full_cycle_order):
     data = pd.read_csv(file_path)
     states = []
     for column_name in data.columns:
-        if "Start" in column_name and "Press" not in column_name and "Lever Task" not in column_name and "Trough Task" not in column_name:
+        if "Start" in column_name and "Press" not in column_name and "Lever Task" not in column_name and "Trough Task" not in column_name and "Licking" not in column_name and "Locomotion" not in column_name:
             states.append(column_name.split("Start")[0])
     
 
@@ -58,11 +58,11 @@ def heatmap(matrices, save_folder = None, exp_num = None):
             # axs[file_list.index(file)//4][file_list.index(file)%4].set_title("Transition Matrix")
         plt.title("Transition Matrix")
         plt.tight_layout()
-        plt.savefig(save_file)
+        # plt.savefig(save_file)
         plt.show()
 
 def plot_multiple_heatmaps(transition_matrices, indices, labels= None, figsize= (10,10)):
-    n_cols = min(3, len(indices))  # Limit to 4 columns max
+    n_cols = min(2, len(indices))  # Limit to 4 columns max
     n_rows = math.ceil(len(indices) / n_cols)
     
     # Behavior state labels - using shortened versions to avoid overlap
@@ -93,7 +93,7 @@ def plot_multiple_heatmaps(transition_matrices, indices, labels= None, figsize= 
         ax = axs[row_idx, col_idx]
         
         # Plot heatmap without individual colorbars
-        sns.heatmap(matrices_to_plot[i], annot=True, fmt=".1f", cmap='Oranges', 
+        sns.heatmap(matrices_to_plot[i], annot=True, fmt=".2f", cmap='Oranges', 
                    square=True, xticklabels=states, yticklabels=states, 
                    ax=ax, cbar=False, vmin=vmin, vmax=vmax)
         
@@ -131,9 +131,10 @@ def plot_multiple_heatmaps(transition_matrices, indices, labels= None, figsize= 
     sm.set_array([])
     cbar = fig.colorbar(sm, cax=cbar_ax)
     
+    cbar.set_label('Number of transitions', rotation=270, labelpad=20)
     # Adjust layout for better spacing
     plt.tight_layout(rect=[0, 0, 0.9, 1])  # Leave space for colorbar
-    plt.savefig(r"behavioral_data\behavior descriptions\full session\stat_graphs\transition\\R_D_heatmap.png")
+    # plt.savefig(r"C:\Users\maxge\OneDrive - Université Libre de Bruxelles\MA2\Mémoire\master_thesis\behavioral_data\behavior descriptions\behavior_stat_graphs\Transitions")
     plt.show()
 
 
@@ -191,14 +192,14 @@ def main():
 
     behavior_labels = ['Sequence ', 'Moving To\nTrough ', 'Drinking Full ', 'Moving To\nLever ','Drinking Empty ', 'Off Task ']
     max_transitions = np.max(transition_matrices)
-    for i, matrix in enumerate(transition_matrices) : 
-        matrix = matrix/3
-        folder = r"behavioral_data\behavior descriptions\behavior_stat_graphs\Transitions"
-        chord(matrix, full_cycle_order, exp_list[i], save_folder=folder)
-        # markov(matrix, behavior_labels, max_transitions, save_folder= folder, exp_num=exp_list[i])
-        # heatmap([matrix], folder, exp_list[i])
+    # for i, matrix in enumerate(transition_matrices) : 
+    #     matrix = matrix/3
+    #     folder = r"behavioral_data\behavior descriptions\behavior_stat_graphs\Transitions"
+    #     chord(matrix, full_cycle_order, exp_list[i], save_folder=folder)
+    #     markov(matrix, behavior_labels, max_transitions, save_folder= folder, exp_num=exp_list[i])
+    #     heatmap([matrix], folder, exp_list[i])
     
-    # plot_multiple_heatmaps(transition_matrices, [0, 1, 2, 3, 4, 5], labels = ["First FR1 session", "Second FR1 session", "Third FR1 session", "Fourth FR1 session", "Fifth FR1 session", "Sixth FR1 session"])
+    plot_multiple_heatmaps(transition_matrices, [0, 2, 4, 5], labels = ["First FR1 session", "Third FR1 session", "Fifth FR1 session", "Sixth FR1 session"])
     
 
 if __name__ == "__main__":

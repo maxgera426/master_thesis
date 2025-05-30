@@ -497,30 +497,30 @@ def compute_behavior_description(file_list, folder):
 
 
         data_dict = {
-            'Pressing Start': pd.Series(start_pressing_times.values),
-            'Pressing End': pd.Series(end_pressing_times.values),
-            'Enter Zone 1': pd.Series(enter_zone1_times.values),
-            'Enter Zone 2': pd.Series(enter_zone2_times.values),
-            'Licking Full Start': pd.Series(full_drinking_times["Start"].values),
-            'Licking Full End': pd.Series(full_drinking_times["End"].values),
-            'Licking Empty Start': pd.Series(empty_drinking_times["Start"].values),
-            'Licking Empty End': pd.Series(empty_drinking_times["End"].values),
-            'Drinking Full Start': pd.Series(start_drinking_times.values),
-            'Drinking Full End': pd.Series(end_drinking_times.values),
-            'Drinking Empty Start': pd.Series(start_empty_drinking_times.values),
-            'Drinking Empty End': pd.Series(end_empty_drinking_times.values),
-            'In Lever Task Start': pd.Series(lever_task_start.values),
-            'In Lever Task End': pd.Series(lever_task_end.values),
-            'In Trough Task Start': pd.Series(trough_task_start.values),
-            'In Trough Task End': pd.Series(trough_task_end.values),
-            'Off Task Start': pd.Series(start_off_task.values),
-            'Off Task End': pd.Series(end_off_task.values),
-            'Sequence Start': pd.Series(seq_start_times.values),
-            'Sequence End': pd.Series(seq_end_times.values),
-            'Moving To Lever Start' : pd.Series(start_moving_to_lever.values),
-            'Moving To Lever End' :  pd.Series(end_moving_to_lever.values),
-            'Moving To Trough Start' : pd.Series(start_moving_to_trough.values),
-            'Moving To Trough End' :  pd.Series(end_moving_to_trough.values),
+            'Pressing Start': pd.Series(start_pressing_times.values).drop_duplicates().reset_index(drop=True),
+            'Pressing End': pd.Series(end_pressing_times.values).drop_duplicates().reset_index(drop=True),
+            'Enter Zone 1': pd.Series(enter_zone1_times.values).drop_duplicates().reset_index(drop=True),
+            'Enter Zone 2': pd.Series(enter_zone2_times.values).drop_duplicates().reset_index(drop=True),
+            'Licking Full Start': pd.Series(full_drinking_times["Start"].values).drop_duplicates().reset_index(drop=True),
+            'Licking Full End': pd.Series(full_drinking_times["End"].values).drop_duplicates().reset_index(drop=True),
+            'Licking Empty Start': pd.Series(empty_drinking_times["Start"].values).drop_duplicates().reset_index(drop=True),
+            'Licking Empty End': pd.Series(empty_drinking_times["End"].values).drop_duplicates().reset_index(drop=True),
+            'Drinking Full Start': pd.Series(start_drinking_times.values).drop_duplicates().reset_index(drop=True),
+            'Drinking Full End': pd.Series(end_drinking_times.values).drop_duplicates().reset_index(drop=True),
+            'Drinking Empty Start': pd.Series(start_empty_drinking_times.values).drop_duplicates().reset_index(drop=True),
+            'Drinking Empty End': pd.Series(end_empty_drinking_times.values).drop_duplicates().reset_index(drop=True),
+            'In Lever Task Start': pd.Series(lever_task_start.values).drop_duplicates().reset_index(drop=True),
+            'In Lever Task End': pd.Series(lever_task_end.values).drop_duplicates().reset_index(drop=True),
+            'In Trough Task Start': pd.Series(trough_task_start.values).drop_duplicates().reset_index(drop=True),
+            'In Trough Task End': pd.Series(trough_task_end.values).drop_duplicates().reset_index(drop=True),
+            'Off Task Start': pd.Series(start_off_task.values).drop_duplicates().reset_index(drop=True),
+            'Off Task End': pd.Series(end_off_task.values).drop_duplicates().reset_index(drop=True),
+            'Sequence Start': pd.Series(seq_start_times.values).drop_duplicates().reset_index(drop=True),
+            'Sequence End': pd.Series(seq_end_times.values).drop_duplicates().reset_index(drop=True),
+            'Moving To Lever Start' : pd.Series(start_moving_to_lever.values).drop_duplicates().reset_index(drop=True),
+            'Moving To Lever End' :  pd.Series(end_moving_to_lever.values).drop_duplicates().reset_index(drop=True),
+            'Moving To Trough Start' : pd.Series(start_moving_to_trough.values).drop_duplicates().reset_index(drop=True),
+            'Moving To Trough End' :  pd.Series(end_moving_to_trough.values).drop_duplicates().reset_index(drop=True),
         }
         exp_folder = os.path.dirname(file_path)
         behaviors_df = pd.DataFrame(data_dict, dtype=object)
@@ -841,7 +841,7 @@ def plot_behavior_levels(file_list, titles = None):
 
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='center right')
-
+        plt.xlabel("Time (ms)")
         plt.tight_layout(rect=[0, 0, 0.85, 1])
         plt.show()
     return
@@ -916,7 +916,7 @@ def time_duration_session():
     for i, mouse_data in enumerate(total_session_distributions):
         plt.plot(x, mouse_data, label=mice[i], marker='o', linewidth=2)
 
-    plt.xticks(x, exp_list, rotation=45)  # Rotate labels if needed
+    plt.xticks(x, exp_list)  # Rotate labels if needed
     plt.xlabel("Session number", fontsize=12)
     plt.ylabel("Number of liquid distributions", fontsize=12)
     plt.grid(alpha=0.3, linestyle='--')  # Subtle grid
@@ -929,17 +929,16 @@ def behavior_episodes():
     mice = ["M2", "M4", "M15"]
     exp_list = ["1st FR1", "2nd FR1", "3rd FR1", "4th FR1", "5th FR1", "6th FR1"]
     behavior_list = ['Sequence', 'Moving To Trough', 'Locomotion To Trough', 'Drinking Full', 'Moving To Lever', 'Locomotion To Lever', 'Drinking Empty', 'Off Task']
-    
     all_durations = {behavior: [] for behavior in behavior_list}
 
-    for mouse in mice:
+    for i, mouse in enumerate(mice):
         folder = f"behavioral_data\\behavior descriptions\\final_description\\{mouse}"
         file_list = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith('.csv')]
 
-        for f in file_list:
+        for j, f in enumerate(file_list):
             data = load_data_from_behavior_csv(f)
 
-            for behavior in behavior_list:
+            for k, behavior in enumerate(behavior_list):
                 try:
                     episodes = data[[behavior + " Start", behavior + " End"]].dropna()
                     durations = episodes.iloc[:, 1] - episodes.iloc[:, 0]
@@ -947,6 +946,7 @@ def behavior_episodes():
                         all_durations[behavior].extend(durations.tolist())
                 except KeyError:
                     continue
+
 
     mean_data = {
     "Behavior": [],
@@ -969,9 +969,10 @@ def behavior_episodes():
     plt.ylabel("Mean duration (s)")
     plt.tight_layout()
     plt.show()
-            
+
 
 def main():
+    # time_duration_session()
     # behavior_episodes()
     # time_duration_session()
     # fuse_drinking()
@@ -997,15 +998,15 @@ def main():
     #         plt.show()
     
     #PLOT SINGLE SESSION
-    plot_single_experiment(r"behavioral_data\behavior descriptions\final_description\M2\M2 - Jun24_Exp 010_behavior_description.csv")
-    plot_single_experiment("segment_1.csv")
-    plot_single_experiment("segment_2.csv")
-    plot_single_experiment("segment_3.csv")
-    plot_single_experiment("segment_4.csv")
+    plot_single_experiment(r"behavioral_data\behavior descriptions\final_description\M15\M15 - Jun24_Exp 015_behavior_description.csv")
+
+    # plot_single_experiment(r"behavioral_data\behavior descriptions\divided_descriptions\M2\M2 - Jun24_Exp 014_behavior_description_segment_1.csv")
+    # plot_single_experiment(r"behavioral_data\behavior descriptions\divided_descriptions\M2\M2 - Jun24_Exp 014_behavior_description_segment_2.csv")
+    # plot_single_experiment(r"behavioral_data\behavior descriptions\divided_descriptions\M2\M2 - Jun24_Exp 014_behavior_description_segment_3.csv")
     plt.show()
 
     #PLOT MULTIPLE SESSIONS
-    # FR1 = ["Exp 016", "Exp 017"] #, "Exp 014", "Exp 016"]
+    # FR1 = ["Exp 016", "Exp 017"]
     # mice = ["M2", "M4", "M15"]
     # titles = ['Sixth FR1 session', 'Complete devaluation']
     # folder_path = r"behavioral_data\behavior descriptions\final_description\M4"

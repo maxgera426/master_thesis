@@ -19,7 +19,7 @@ def plot_cell_traces(cell_traces, acc_cells):
     n_cells = len(acc_cells)
     if n_cells == 1:
         trace = cell_traces[acc_cells[0]]
-        fig = plt.figure(figsize=(10, 6))
+        fig = plt.figure(figsize=(15, 3))
         plt.plot(cell_traces["Time"], trace)
 
         # Calculate statistics
@@ -27,31 +27,31 @@ def plot_cell_traces(cell_traces, acc_cells):
         std = np.std(trace)
         min_h = mean + 3 * std
 
-        # Draw horizontal lines
-        plt.hlines(min_h, 0, np.max(cell_traces["Time"]), colors='g', linestyles="dashed", label="Min h")
-        plt.hlines(mean, 0, np.max(cell_traces["Time"]), colors='r', linestyles="dashed", label="Mean")
+        # # # Draw horizontal lines
+        # plt.hlines(min_h, 0, np.max(cell_traces["Time"]), colors='g', linestyles="dashed", label="Min h")
+        # plt.hlines(mean, 0, np.max(cell_traces["Time"]), colors='r', linestyles="dashed", label="Mean")
 
-        # Find peaks
-        peak_indices, peak_properties = find_peaks(trace, height=min_h, prominence=min_h/3)
-        peak_times = cell_traces["Time"][peak_indices]
-        peak_heights = trace[peak_indices].values
+        # # Find peaks
+        # peak_indices, peak_properties = find_peaks(trace, height=min_h, prominence=min_h/3)
+        # peak_times = cell_traces["Time"][peak_indices]
+        # peak_heights = trace[peak_indices].values
 
-        # Calculate prominences
-        prominences, left_bases, right_bases = peak_prominences(trace, peak_indices)
+        # # # Calculate prominences
+        # # prominences, left_bases, right_bases = peak_prominences(trace, peak_indices)
 
-        # Plot peaks
-        plt.scatter(peak_times, peak_heights, c='r', marker='x', label="Peaks")
+        # # Plot peaks
+        # plt.scatter(peak_times, peak_heights, c='r', marker='x', label="Peaks")
 
-        # Draw prominence for each peak
-        for i, (idx, prominence) in enumerate(zip(peak_indices, prominences)):
-            if i == 0:
-                plt.vlines(x=cell_traces["Time"][idx], ymin=peak_heights[i]-prominence, 
-                       ymax=peak_heights[i], colors='b', linestyles='dashed', label= "Prominence")
-            else:
-                plt.vlines(x=cell_traces["Time"][idx], ymin=peak_heights[i]-prominence, 
-                       ymax=peak_heights[i], colors='b', linestyles='dashed')
+        # # Draw prominence for each peak
+        # for i, (idx, prominence) in enumerate(zip(peak_indices, prominences)):
+        #     if i == 0:
+        #         plt.vlines(x=cell_traces["Time"][idx], ymin=peak_heights[i]-prominence, 
+        #                ymax=peak_heights[i], colors='b', linestyles='dashed', label= "Prominence")
+        #     else:
+        #         plt.vlines(x=cell_traces["Time"][idx], ymin=peak_heights[i]-prominence, 
+        #                ymax=peak_heights[i], colors='b', linestyles='dashed')
 
-        plt.xlim(490, 570)
+        # plt.xlim(490, 570)
         plt.ylabel("Signal intensity")
 
     else:
@@ -62,7 +62,6 @@ def plot_cell_traces(cell_traces, acc_cells):
             axs[i].set_ylabel(cell, rotation=0, labelpad=20)
             fig.suptitle("Neuronal Traces", fontweight= 'bold')
     plt.xlabel("Time (s)")
-    plt.legend()
     plt.show()
 
 def get_file_list(exp_list, folder_path):
@@ -185,7 +184,7 @@ def behavioral_activity_peaks(behavior_file, behavior_list, peak_times, max_t):
         behavior_windows[behavior] = behaviors_description[[behavior + " Start", behavior + " End"]][behaviors_description[behavior + " End"] <= max_t].dropna().values
     
     org_freqs = np.array([peak_freq_behavior(peak_times, behavior_windows[behavior]) if behavior_windows[behavior].any() else np.nan for behavior in behavior_list])
-    
+    print(org_freqs)
     offset_frequencies = np.zeros((len(offsets), len(behavior_list)))
     for i, offset in enumerate(offsets):
         if not offset%5000:
@@ -288,7 +287,6 @@ def behavioral_activity_density(behavior_file, behavior_list, cell_traces, max_t
     peak_dict = detect_peaks(cell_traces)
     peak_times = peak_dict.values()
     total_density = [len(peaks)/max_t_s for peaks in peak_times]
-
     for behavior in behavior_list:
         behavior_windows[behavior] = np.array(behaviors_description[[behavior + " Start", behavior + " End"]][behaviors_description[behavior + " End"] <= max_t].dropna().values)
     
@@ -296,7 +294,6 @@ def behavioral_activity_density(behavior_file, behavior_list, cell_traces, max_t
     offset_frequencies = np.zeros((len(offsets), len(peak_times), len(behavior_list)))
     for i, peaks in enumerate(peak_times):
         org_freqs[i] = [density_freq_behavior(peaks, behavior_windows[behavior], total_density[i]) if behavior_windows[behavior].any() else np.nan for behavior in behavior_list]
-
         for j, offset in enumerate(offsets):
             if not offset%5000:
                 print(offset/1000)
@@ -405,28 +402,28 @@ def save_behavior_percentiles(neuron_file_path, behavior_file_path):
     # save_df.to_csv(save_name, index=False)
     
     ## COMPUTE NEURON ACTIVITY BASED ON MEAN VALUE DURING BEHAVIOR
-    save_df = pd.DataFrame(columns=["Cell"] + behavior_list)
-    neuron_activity = behavioral_activity_mean(behavior_file_path, behavior_list, cell_traces, max_t)
-    cells = cell_traces.columns[1:]
-    for i, cell in enumerate(cells):
-        new_row = pd.Series([cell] + neuron_activity[i], index=["Cell"] + behavior_list)
-        save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
-    
-    exp_num = os.path.basename(neuron_file_path)[:7]
-    save_name = r"neuronal_activity_data\percentiles\M15\behavior_related\mean_per_behavior\\" + exp_num + "_activity_mean.csv"
-    save_df.to_csv(save_name, index=False)
-
-    ## COMPUTE NEURON ACTIVITY BASED ON RELATIVE PEAK DENSITY
     # save_df = pd.DataFrame(columns=["Cell"] + behavior_list)
-    # neuron_activity, peaks = behavioral_activity_density(behavior_file_path, behavior_list, cell_traces, max_t)
+    # neuron_activity = behavioral_activity_mean(behavior_file_path, behavior_list, cell_traces, max_t)
     # cells = cell_traces.columns[1:]
-    # for i, cell in enumerate(peaks.keys()):
+    # for i, cell in enumerate(cells):
     #     new_row = pd.Series([cell] + neuron_activity[i], index=["Cell"] + behavior_list)
     #     save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
     
     # exp_num = os.path.basename(neuron_file_path)[:7]
-    # save_name = r"neuronal_activity_data\percentiles\M15\behavior_related\density_per_behavior\\" + exp_num + "_activity_density.csv"
+    # save_name = r"neuronal_activity_data\percentiles\M15\behavior_related\mean_per_behavior\\" + exp_num + "_activity_mean.csv"
     # save_df.to_csv(save_name, index=False)
+
+    ## COMPUTE NEURON ACTIVITY BASED ON RELATIVE PEAK DENSITY
+    save_df = pd.DataFrame(columns=["Cell"] + behavior_list)
+    neuron_activity, peaks = behavioral_activity_density(behavior_file_path, behavior_list, cell_traces, max_t)
+    cells = cell_traces.columns[1:]
+    for i, cell in enumerate(peaks.keys()):
+        new_row = pd.Series([cell] + neuron_activity[i], index=["Cell"] + behavior_list)
+        save_df = pd.concat([save_df, pd.DataFrame([new_row])], ignore_index=True)
+    
+    exp_num = os.path.basename(neuron_file_path)[:7]
+    save_name = r"neuronal_activity_data\percentiles\M15\behavior_related\density_per_behavior\\" + exp_num + "_activity_density.csv"
+    save_df.to_csv(save_name, index=False)
 
     return
 
@@ -491,8 +488,8 @@ def main():
     # print(len(behavior_file_list), len(trace_file_list))
 
     # for neuron_file_path, behavior_file_path in zip(trace_file_list, behavior_file_list):
-    #     # save_behavior_percentiles(neuron_file_path, behavior_file_path)
-    #     info_about_traces(neuron_file_path)
+    #     save_behavior_percentiles(neuron_file_path, behavior_file_path)
+    #     # info_about_traces(neuron_file_path)
 
     ### PLOT PERCENTILE GRAPH
     # neuron_file_path = r"neuronal_activity_data\calcium_traces\M2\status_based_2\Exp 010_M2_240619_FR1_1_CellTraces_accepted_traces.csv"
@@ -580,8 +577,9 @@ def main():
     # plt.show()
 
     ### TO PLOT A / MULTIPLE CELL TRACE WITH DETECTED PEAKS
-    cell_traces = pd.read_csv(r"neuronal_activity_data\calcium_traces\M2\status_based_2\Exp 016_M2_240623_FR1_6_CellTraces_accepted_traces.csv")
-    plot_cell_traces(cell_traces, ['C38', 'C42'])
+    # cell_traces, _= load_data(r"P:\Ca2+ Data\M2 - Jun24\Exp 010\M2_240619_FR1_1_CellTraces.csv")
+    cell_traces = pd.read_csv(r"neuronal_activity_data\calcium_traces\M4\status_based_2\Exp 011_M4_240619_FR1_2_CellTraces_accepted_traces.csv")
+    plot_cell_traces(cell_traces, ['C37'])
 
 if __name__ == "__main__":
     main()

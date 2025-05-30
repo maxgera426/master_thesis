@@ -87,11 +87,11 @@ def save_segmented_data(segmented_dfs: List[pd.DataFrame],
     return saved_files
 
 if __name__ == "__main__":
-    duration = [1214467,1222914,1202906]
+    duration = [1240046,1213640,1240046]
     mice = ["M2", "M4", "M15"]
     for i, mouse in enumerate(mice):
 
-        file_path = f"behavioral_data\\behavior descriptions\\final_description\\{mouse}\\{mouse} - Jun24_Exp 015_behavior_description.csv"
+        file_path = f"behavioral_data\\behavior descriptions\\final_description\\{mouse}\\{mouse} - Jun24_Exp 017_behavior_description.csv"
         save_folder = f"behavioral_data\\behavior descriptions\\divided_descriptions\\{mouse}"
         segments = divide_behavior_descriptions(file_path, n=3, max_t=duration[i])
 
